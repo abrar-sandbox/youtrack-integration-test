@@ -1,0 +1,16 @@
+name: On Youtrack Tag dev-bot
+
+on:
+  repository_dispatch:
+    types: [ youtrack-tag-dev-bot ]
+
+jobs:
+  log-ticket-details:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log Youtrack Ticket Details
+        run: |
+          echo "Received YouTrack event:"
+          echo "Issue ID: ${{ github.event.client_payload.issueId }}"
+          echo "Title: ${{ github.event.client_payload.title }}"
+          echo "Description: ${{ github.event.client_payload.description }}"
