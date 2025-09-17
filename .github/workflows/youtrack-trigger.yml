@@ -30,20 +30,13 @@ jobs:
 
       - name: Install Claude
         run: |
-          npm install -g claude-code@latest
+          npm install -g @anthropic-ai/claude-code
           echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
 
-          # Debug: Check installation
-          echo "npm prefix: $(npm config get prefix)"
-          echo "Looking for claude executable..."
-          find $(npm config get prefix) -name "claude*" -type f 2>/dev/null || true
-          find $(npm config get prefix) -name "claude*" -type l 2>/dev/null || true
-
-          # Check what npm installed
-          npm list -g claude-code
-
-          # Check package.json bin field
-          cat $(npm config get prefix)/lib/node_modules/claude-code/package.json | grep -A5 '"bin"' || true
+      - name: Verify Claude Installation
+        run: |
+          echo "Verifying Claude installation..."
+          claude --version
 
       - name: Install GitHub CLI
         run: |
