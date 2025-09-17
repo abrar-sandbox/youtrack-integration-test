@@ -23,7 +23,6 @@ jobs:
 
   validate-repository-references:
     runs-on: ubuntu-latest
-    needs: log-ticket-details
     steps:
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,11 +31,6 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
           echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
-
-      - name: Verify Claude Installation
-        run: |
-          echo "Verifying Claude installation..."
-          claude --version
 
       - name: Install GitHub CLI
         run: |
@@ -52,7 +46,7 @@ jobs:
           docker pull tonyzorin/youtrack-mcp:latest
 
           # Add YouTrack MCP server to Claude
-          claude mcp add youtrack stdio docker run -i --rm -e YOUTRACK_URL -e YOUTRACK_API_TOKEN -e YOUTRACK_CLOUD=true tonyzorin/youtrack-mcp:latest
+          claude mcp add youtrack stdio "docker run -i --rm -e YOUTRACK_URL -e YOUTRACK_API_TOKEN -e YOUTRACK_CLOUD=true tonyzorin/youtrack-mcp:latest"
 
           # Verify MCP server is added
           claude mcp list
