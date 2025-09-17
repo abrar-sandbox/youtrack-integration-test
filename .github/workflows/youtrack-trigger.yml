@@ -31,6 +31,8 @@ jobs:
       - name: Install Claude
         run: |
           npm install -g claude-code@latest
+          echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
+          claude --version
 
       - name: Install GitHub CLI
         run: |
@@ -44,10 +46,10 @@ jobs:
         run: |
           # Pull the YouTrack MCP Docker image
           docker pull tonyzorin/youtrack-mcp:latest
-          
+
           # Add YouTrack MCP server to Claude
           claude mcp add youtrack stdio docker run -i --rm -e YOUTRACK_URL -e YOUTRACK_API_TOKEN -e YOUTRACK_CLOUD=true tonyzorin/youtrack-mcp:latest
-          
+
           # Verify MCP server is added
           claude mcp list
 
