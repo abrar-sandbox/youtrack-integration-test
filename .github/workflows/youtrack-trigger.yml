@@ -46,7 +46,9 @@ jobs:
           docker pull tonyzorin/youtrack-mcp:latest
 
           # Add YouTrack MCP server to Claude
-          claude mcp add youtrack stdio "docker run -i --rm -e YOUTRACK_URL='${YOUTRACK_URL}' -e YOUTRACK_API_TOKEN='${YOUTRACK_API_TOKEN}' -e YOUTRACK_CLOUD=true tonyzorin/youtrack-mcp:latest"
+          echo $YOUTRACK_URL
+          echo $YOUTRACK_API_TOKEN
+          claude mcp add youtrack stdio "docker run -i --rm -e YOUTRACK_URL -e YOUTRACK_API_TOKEN -e YOUTRACK_CLOUD=true tonyzorin/youtrack-mcp:latest"
 
           # Verify MCP server is added
           claude mcp list
@@ -77,4 +79,4 @@ jobs:
           "
 
           # Run Claude with the enhanced prompt
-          claude -p "$PROMPT"
+          (echo "$PROMPT"; echo "/exit") | claude
