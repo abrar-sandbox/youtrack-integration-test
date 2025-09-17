@@ -40,10 +40,6 @@ jobs:
           sudo apt update
           sudo apt install gh
 
-      - name: Authenticate GitHub CLI
-        run: |
-          echo "${{ env.GITHUB_TOKEN }}" | gh auth login --with-token
-
       - name: Setup YouTrack MCP Server
         run: |
           # Pull the YouTrack MCP Docker image
