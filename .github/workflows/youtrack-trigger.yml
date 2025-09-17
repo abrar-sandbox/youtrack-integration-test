@@ -35,16 +35,15 @@ jobs:
 
           # Debug: Check installation
           echo "npm prefix: $(npm config get prefix)"
-          ls -la $(npm config get prefix)/bin/
+          echo "Looking for claude executable..."
+          find $(npm config get prefix) -name "claude*" -type f 2>/dev/null || true
+          find $(npm config get prefix) -name "claude*" -type l 2>/dev/null || true
 
-          # Try running claude with full path to verify it's installed
-          $(npm config get prefix)/bin/claude --version || echo "Claude not executable yet"
+          # Check what npm installed
+          npm list -g claude-code
 
-      - name: Verify Claude Installation
-        run: |
-          cat ~/.bashrc
-          source ~/.bashrc
-          claude --version
+          # Check package.json bin field
+          cat $(npm config get prefix)/lib/node_modules/claude-code/package.json | grep -A5 '"bin"' || true
 
       - name: Install GitHub CLI
         run: |
@@ -56,11 +55,6 @@ jobs:
 
       - name: Setup YouTrack MCP Server
         run: |
-          # Debug: Check if claude is in PATH
-          echo "Current PATH: $PATH"
-          echo "npm prefix: $(npm config get prefix)"
-          which claude || echo "claude not found in PATH"
-
           # Pull the YouTrack MCP Docker image
           docker pull tonyzorin/youtrack-mcp:latest
 
