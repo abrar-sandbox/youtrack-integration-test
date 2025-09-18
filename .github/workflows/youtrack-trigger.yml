@@ -53,33 +53,45 @@ jobs:
           # Verify MCP server is added
           claude mcp list
 
-      - name: Setup upterm session
-        uses: owenthereal/action-upterm@v1
+#      - name: Setup upterm session
+#        uses: owenthereal/action-upterm@v1
 
-      - name: Process ticket with Claude
+#      - name: Process ticket with Claude
+#        env:
+#          TICKET_ID: ${{ github.event.client_payload.issueId }}
+#          TICKET_TITLE: ${{ github.event.client_payload.title }}
+#          TICKET_DESCRIPTION: ${{ github.event.client_payload.description }}
+#        run: |
+#          # Create the enhanced prompt with MCP capabilities
+#          PROMPT="
+#          Ticket ID: $TICKET_ID
+#          Title: $TICKET_TITLE
+#          Description: $TICKET_DESCRIPTION
+#
+#          You now have access to YouTrack via MCP server and GitHub via gh CLI.
+#
+#          Task: Is there any references to repositories that need to be worked to solve this ticket?
+#
+#          If yes:
+#          1. Verify that you have access to these repos on the ideascale org using: gh repo view ideascale/repo-name
+#          2. If validated, use gh to create an issue on each of those repos with the ticket title
+#          3. Use the YouTrack MCP to add a comment to the original ticket with success details
+#
+#          If no repository references are found or repositories can't be validated:
+#          1. Use the YouTrack MCP to comment on the original ticket saying 'Repository references not found or inaccessible. Please specify repositories in the ticket description using format: repositories: repo1, repo2, repo3'
+#          "
+#
+#          # Run Claude with the enhanced prompt
+#          (echo "$PROMPT"; echo "/exit") | claude
+
+      - name: Debug claude
         env:
           TICKET_ID: ${{ github.event.client_payload.issueId }}
           TICKET_TITLE: ${{ github.event.client_payload.title }}
           TICKET_DESCRIPTION: ${{ github.event.client_payload.description }}
         run: |
           # Create the enhanced prompt with MCP capabilities
-          PROMPT="
-          Ticket ID: $TICKET_ID
-          Title: $TICKET_TITLE
-          Description: $TICKET_DESCRIPTION
-
-          You now have access to YouTrack via MCP server and GitHub via gh CLI.
-
-          Task: Is there any references to repositories that need to be worked to solve this ticket? 
-
-          If yes:
-          1. Verify that you have access to these repos on the ideascale org using: gh repo view ideascale/repo-name
-          2. If validated, use gh to create an issue on each of those repos with the ticket title
-          3. Use the YouTrack MCP to add a comment to the original ticket with success details
-
-          If no repository references are found or repositories can't be validated:
-          1. Use the YouTrack MCP to comment on the original ticket saying 'Repository references not found or inaccessible. Please specify repositories in the ticket description using format: repositories: repo1, repo2, repo3'
-          "
+          PROMPT="use gh to list repos in ideascale org. use youtrack mcp to see details of $TICKET_ID."
 
           # Run Claude with the enhanced prompt
           (echo "$PROMPT"; echo "/exit") | claude
