@@ -40,6 +40,35 @@ jobs:
           sudo apt update
           sudo apt install gh
 
+      - name: Verify GitHub CLI
+        run: |
+          # Wait a moment for installation to settle
+          sleep 2
+          
+          # Verify gh is installed and accessible
+          echo "Checking gh installation..."
+          which gh
+          gh --version
+          
+          # Authenticate with retry logic
+          echo "Authenticating with GitHub..."
+          echo "$GITHUB_TOKEN" | gh auth login --with-token
+          
+          # Wait for auth to settle
+          sleep 2
+          
+          # Verify authentication works
+          echo "Verifying authentication..."
+          gh auth status
+          
+          # Test basic functionality
+          echo "Testing basic gh functionality..."
+          gh repo view abrar-sandbox/youtrack-integration-test
+          
+          # Wait before next steps
+          echo "Setup complete, waiting 3 seconds before proceeding..."
+          sleep 3
+
 #      - name: Setup YouTrack MCP Server
 #        run: |
 #          # Pull the YouTrack MCP Docker image
