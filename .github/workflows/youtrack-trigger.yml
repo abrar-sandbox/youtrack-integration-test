@@ -32,35 +32,35 @@ jobs:
           npm install -g @anthropic-ai/claude-code
           echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
 
-      - name: Install GitHub CLI
-        run: |
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-          sudo apt update
-          sudo apt install gh
-
-      - name: Verify GitHub CLI
-        run: |
-          # Wait a moment for installation to settle
-          sleep 2
-          
-          # Verify gh is installed and accessible
-          echo "Checking gh installation..."
-          which gh
-          gh --version
-          
-          # Verify authentication works
-          echo "Verifying authentication..."
-          gh auth status
-          
-          # Test basic functionality
-          echo "Testing basic gh functionality..."
-          gh repo view abrar-sandbox/youtrack-integration-test
-          
-          # Wait before next steps
-          echo "Setup complete, waiting 3 seconds before proceeding..."
-          sleep 3
+#      - name: Install GitHub CLI
+#        run: |
+#          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+#          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+#          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+#          sudo apt update
+#          sudo apt install gh
+#
+#      - name: Verify GitHub CLI
+#        run: |
+#          # Wait a moment for installation to settle
+#          sleep 2
+#
+#          # Verify gh is installed and accessible
+#          echo "Checking gh installation..."
+#          which gh
+#          gh --version
+#
+#          # Verify authentication works
+#          echo "Verifying authentication..."
+#          gh auth status
+#
+#          # Test basic functionality
+#          echo "Testing basic gh functionality..."
+#          gh repo view abrar-sandbox/youtrack-integration-test
+#
+#          # Wait before next steps
+#          echo "Setup complete, waiting 3 seconds before proceeding..."
+#          sleep 3
 
 #      - name: Setup YouTrack MCP Server
 #        run: |
@@ -104,16 +104,43 @@ jobs:
 #          "
 #
 #          # Run Claude with the enhanced prompt
-#          (echo "$PROMPT"; echo "/exit") | claude
+#          (echo "$PROMPT") | claude --dangerously-skip-permissions
 
-      - name: Debug claude
+#      - name: Debug claude
 #        env:
 #          TICKET_ID: ${{ github.event.client_payload.issueId }}
 #          TICKET_TITLE: ${{ github.event.client_payload.title }}
 #          TICKET_DESCRIPTION: ${{ github.event.client_payload.description }}
+#        run: |
+#          # Create the enhanced prompt with MCP capabilities
+#          PROMPT="use gh to list repos in ideascale org."
+#
+#          # Run Claude with the enhanced prompt
+#          (echo "$PROMPT") | claude --dangerously-skip-permissions
+
+      - name: Debug claude
+        env:
+          TICKET_ID: ${{ github.event.client_payload.issueId }}
+          TICKET_TITLE: ${{ github.event.client_payload.title }}
+          TICKET_DESCRIPTION: ${{ github.event.client_payload.description }}
         run: |
           # Create the enhanced prompt with MCP capabilities
-          PROMPT="use gh to list repos in ideascale org."
+          PROMPT="
+          Ticket ID: $TICKET_ID
+          Title: $TICKET_TITLE
+          Description: $TICKET_DESCRIPTION
+
+          You have access to GitHub via gh CLI.
+
+          Task: Is there any references to repositories that need to be worked to solve this ticket?
+
+          If yes:
+          1. Verify that you have access to these repos on the ideascale org using: gh repo view ideascale/repo-name
+          2. If validated, use gh to create an issue on each of those repos with the ticket title
+
+          If no repository references are found or repositories can't be validated:
+          1. respond with 'Repository references not found or inaccessible. Please specify repositories in the ticket description using format: repositories: repo1, repo2, repo3'
+          "
 
           # Run Claude with the enhanced prompt
           (echo "$PROMPT") | claude --dangerously-skip-permissions
