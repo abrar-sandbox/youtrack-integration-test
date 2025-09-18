@@ -53,6 +53,12 @@ jobs:
           # Verify MCP server is added
           claude mcp list
 
+      - name: Setup tmate session for debugging
+        if: ${{ github.event_name == 'repository_dispatch' }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+
       - name: Process ticket with Claude
         env:
           TICKET_ID: ${{ github.event.client_payload.issueId }}
