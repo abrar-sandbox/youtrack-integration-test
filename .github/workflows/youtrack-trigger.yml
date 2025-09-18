@@ -50,13 +50,6 @@ jobs:
           which gh
           gh --version
           
-          # Authenticate with retry logic
-          echo "Authenticating with GitHub..."
-          echo "$GITHUB_TOKEN" | gh auth login --with-token
-          
-          # Wait for auth to settle
-          sleep 2
-          
           # Verify authentication works
           echo "Verifying authentication..."
           gh auth status
