@@ -6,7 +6,6 @@ const GITHUB_REPO = 'abrar-sandbox/youtrack-integration-test';
 exports.rule = entities.Issue.onChange({
     title: 'Dev-bot-tag-applied',
     guard: (ctx) => {
-        // Only run if tags were added in this change
         return ctx.issue.tags.added.has(ctx.devBotTag);
     },
     action: (ctx) => {
