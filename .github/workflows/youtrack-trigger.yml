@@ -24,8 +24,6 @@ jobs:
   validate-repository-references:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4  # Add this checkout step
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
 
@@ -55,8 +53,8 @@ jobs:
           # Verify MCP server is added
           claude mcp list
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+      - name: Setup upterm session
+        uses: owenthereal/action-upterm@v1
 
       - name: Process ticket with Claude
         env:
