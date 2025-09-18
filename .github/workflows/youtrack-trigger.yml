@@ -116,4 +116,4 @@ jobs:
           PROMPT="use gh to list repos in ideascale org."
 
           # Run Claude with the enhanced prompt
-          (echo "$PROMPT"; echo "/exit") | claude
+          (echo "$PROMPT"; echo "/exit") | claude --dangerously-skip-permissions
