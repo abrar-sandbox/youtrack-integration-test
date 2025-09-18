@@ -107,13 +107,13 @@ jobs:
 #          (echo "$PROMPT"; echo "/exit") | claude
 
       - name: Debug claude
-        env:
-          TICKET_ID: ${{ github.event.client_payload.issueId }}
-          TICKET_TITLE: ${{ github.event.client_payload.title }}
-          TICKET_DESCRIPTION: ${{ github.event.client_payload.description }}
+#        env:
+#          TICKET_ID: ${{ github.event.client_payload.issueId }}
+#          TICKET_TITLE: ${{ github.event.client_payload.title }}
+#          TICKET_DESCRIPTION: ${{ github.event.client_payload.description }}
         run: |
           # Create the enhanced prompt with MCP capabilities
           PROMPT="use gh to list repos in ideascale org."
 
           # Run Claude with the enhanced prompt
-          (echo "$PROMPT"; echo "/exit") | claude --dangerously-skip-permissions
+          (echo "$PROMPT") | claude --dangerously-skip-permissions
