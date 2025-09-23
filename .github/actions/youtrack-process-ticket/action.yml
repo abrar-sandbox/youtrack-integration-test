@@ -22,7 +22,8 @@ runs:
     - name: Generate Prompt for Claude
       shell: bash
       run: |
-        PROMPT="
+        cat >>"$GITHUB_ENV" <<'EOF'
+        PROMPT<<__PROMPT__
         Ticket ID: ${{ inputs.ticket_id }}
         Title: ${{ inputs.title }}
         Description: ${{ inputs.description }}
@@ -38,11 +39,8 @@ runs:
         
         If no repository references are found or repositories can't be validated:
         1. Use the YouTrack MCP to comment on the original ticket saying 'Repository references not found or inaccessible. Please specify repositories in the ticket description using format: repositories: repo1, repo2, repo3'
-        "
-        # Persist PROMPT as an environment variable (multiline-safe)
-        echo 'PROMPT<<EOF' >> "$GITHUB_ENV"
-        echo "$PROMPT" >> "$GITHUB_ENV"
-        echo 'EOF' >> "$GITHUB_ENV"
+        __PROMPT__
+        EOF
     - name: Run Claude to Process Ticket
       shell: bash
       run: |
