@@ -1,0 +1,15 @@
+name: Setup Claude CLI
+description: Install and expose the Claude CLI on PATH
+
+runs:
+  using: composite
+  steps:
+    - name: Install Claude CLI
+      shell: bash
+      run: |
+        npm install -g @anthropic-ai/claude-code
+
+    - name: Add npm global bin to PATH
+      shell: bash
+      run: echo "$(npm config get prefix)/bin" >> "$GITHUB_PATH"
+

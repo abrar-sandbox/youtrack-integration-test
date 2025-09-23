@@ -1,0 +1,50 @@
+name: Process YouTrack Ticket with Claude
+description: Run Claude with YouTrack MCP to process a ticket
+
+inputs:
+  ticket_id:
+    description: 'YouTrack ticket ID'
+    required: true
+  title:
+    description: 'Ticket title'
+    required: true
+  description:
+    description: 'Ticket description'
+    required: true
+  github_organization:
+    description: 'GitHub organization to check for repositories'
+    required: false
+    default: 'ideascale'
+
+runs:
+  using: composite
+  steps:
+    - name: Generate Prompt for Claude
+      shell: bash
+      run: |
+        PROMPT="
+        Ticket ID: ${{ inputs.ticket_id }}
+        Title: ${{ inputs.title }}
+        Description: ${{ inputs.description }}
+        
+        You now have access to YouTrack via MCP server and GitHub via gh CLI.
+        
+        Task: Is there any references to repositories that need to be worked to solve this ticket?
+        
+        If yes:
+        1. Verify that you have access to these repos on the ${{ inputs.github_organization }} org using: gh repo view ${{ inputs.github_organization }}/repo-name
+        2. If validated, use gh to create an issue on each of those repos with the ticket id and title and a link to the original ticket
+        3. Use the YouTrack MCP to add a comment to the original ticket with success details
+        
+        If no repository references are found or repositories can't be validated:
+        1. Use the YouTrack MCP to comment on the original ticket saying 'Repository references not found or inaccessible. Please specify repositories in the ticket description using format: repositories: repo1, repo2, repo3'
+        "
+        # Persist PROMPT as an environment variable (multiline-safe)
+        echo 'PROMPT<<EOF' >> "$GITHUB_ENV"
+        echo "$PROMPT" >> "$GITHUB_ENV"
+        echo 'EOF' >> "$GITHUB_ENV"
+    - name: Run Claude to Process Ticket
+      shell: bash
+      run: |
+        RESPONSE=$(printf '%s' "$PROMPT" | claude --dangerously-skip-permissions)
+        echo "Claude Response: $RESPONSE"

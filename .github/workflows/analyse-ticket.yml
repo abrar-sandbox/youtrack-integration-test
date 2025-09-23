@@ -1,0 +1,69 @@
+name: YouTrack Ticket Processor
+
+on:
+  workflow_call:
+    inputs:
+      ticket_id:
+        required: true
+        type: string
+      title:
+        required: true
+        type: string
+      description:
+        required: true
+        type: string
+      youtrack_url:
+        required: true
+        type: string
+      github_organization:
+        required: false
+        type: string
+        default: 'ideascale'
+    secrets:
+      YOUTRACK_API_TOKEN:
+        required: true
+      ANTHROPIC_API_KEY:
+        required: true
+      GH_PAT:
+        required: true
+
+jobs:
+  validate-repos:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Log YouTrack Ticket Details
+        run: |
+          echo "Received YouTrack event:"
+          echo "Issue ID: ${{ inputs.ticket_id }}"
+          echo "Title: ${{ inputs.title }}"
+          echo "Description: ${{ inputs.description }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+
+      - name: Setup Claude CLI
+        uses: ./.github/actions/setup-claude-cli
+
+      - name: Setup YouTrack MCP
+        uses: ./.github/actions/setup-youtrack-mcp
+        with:
+          youtrack-url: ${{ inputs.youtrack_url }}
+          youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
+
+      - name: Process ticket with Claude
+        id: process
+        uses: ./.github/actions/youtrack-process-ticket
+        with:
+          ticket_id: ${{ inputs.ticket_id }}
+          title: ${{ inputs.title }}
+          description: ${{ inputs.description }}
+          github_organization: ${{ inputs.github_organization }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: SSH into runner to Debug
+        uses: owenthereal/action-upterm@v1

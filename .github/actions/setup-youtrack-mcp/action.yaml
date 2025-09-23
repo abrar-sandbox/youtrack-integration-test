@@ -1,0 +1,35 @@
+name: Setup YouTrack MCP
+description: Configure Claude to use the YouTrack MCP server
+
+inputs:
+  youtrack-url:
+    description: 'YouTrack base URL'
+    required: true
+  youtrack-token:
+    description: 'YouTrack API token'
+    required: true
+  cloud:
+    description: 'Is YouTrack Cloud? (true/false)'
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Add YouTrack MCP server to Claude
+      shell: bash
+      run: |
+        YOUTRACK_URL="${{ inputs.youtrack-url }}" \
+        YOUTRACK_API_TOKEN="${{ inputs.youtrack-token }}" \
+        YOUTRACK_CLOUD="${{ inputs.cloud }}" \
+        claude mcp add youtrack -- \
+          docker run -i --rm \
+            -e YOUTRACK_URL \
+            -e YOUTRACK_API_TOKEN \
+            -e YOUTRACK_CLOUD \
+            tonyzorin/youtrack-mcp:latest
+
+    - name: Verify MCP server is added
+      shell: bash
+      run: claude mcp list
+

@@ -4,69 +4,17 @@ on:
   repository_dispatch:
     types: [ youtrack-tag-dev-bot ]
 
-env:
-  YOUTRACK_API_TOKEN: ${{ secrets.YOUTRACK_API_TOKEN }}
-  YOUTRACK_URL: 'https://abrar-sandbox.youtrack.cloud'
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-  GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-
 jobs:
-  log-ticket-details:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Log Youtrack Ticket Details
-        run: |
-          echo "Received YouTrack event:"
-          echo "Issue ID: ${{ github.event.client_payload.issueId }}"
-          echo "Title: ${{ github.event.client_payload.title }}"
-          echo "Description: ${{ github.event.client_payload.description }}"
+  plan-ticket-solution:
+    uses: ./.github/workflows/analyse-ticket.yml
+    with:
+      ticket_id: ${{ github.event.client_payload.issueId }}
+      title: ${{ github.event.client_payload.title }}
+      description: ${{ github.event.client_payload.description }}
+      youtrack_url: 'https://abrar-sandbox.youtrack.cloud'
+      github_organization: 'abrar-sandbox'
+    secrets:
+      YOUTRACK_API_TOKEN: ${{ secrets.YOUTRACK_API_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GH_PAT: ${{ secrets.GH_PAT }}
 
-  validate-repository-references:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-
-      - name: Install Claude
-        run: |
-          npm install -g @anthropic-ai/claude-code
-          echo "$(npm config get prefix)/bin" >> $GITHUB_PATH
-
-      - name: Setup YouTrack MCP Server
-        run: |
-          # Add YouTrack MCP server to Claude
-          claude mcp add youtrack -- docker run -i --rm   -e YOUTRACK_URL   -e YOUTRACK_API_TOKEN   -e YOUTRACK_CLOUD="true"   tonyzorin/youtrack-mcp:latest
-
-          # Verify MCP server is added
-          claude mcp list
-
-#      - name: Setup upterm session
-#        uses: owenthereal/action-upterm@v1
-
-      - name: Process ticket with Claude
-        env:
-          TICKET_ID: ${{ github.event.client_payload.issueId }}
-          TICKET_TITLE: ${{ github.event.client_payload.title }}
-          TICKET_DESCRIPTION: ${{ github.event.client_payload.description }}
-        run: |
-          # Create the enhanced prompt with MCP capabilities
-          PROMPT="
-          Ticket ID: $TICKET_ID
-          Title: $TICKET_TITLE
-          Description: $TICKET_DESCRIPTION
-
-          You now have access to YouTrack via MCP server and GitHub via gh CLI.
-
-          Task: Is there any references to repositories that need to be worked to solve this ticket?
-
-          If yes:
-          1. Verify that you have access to these repos on the ideascale org using: gh repo view ideascale/repo-name
-          2. If validated, use gh to create an issue on each of those repos with the ticket id and title and a link to the original ticket
-          3. Use the YouTrack MCP to add a comment to the original ticket with success details
-
-          If no repository references are found or repositories can't be validated:
-          1. Use the YouTrack MCP to comment on the original ticket saying 'Repository references not found or inaccessible. Please specify repositories in the ticket description using format: repositories: repo1, repo2, repo3'
-          "
-
-          # Run Claude with the enhanced prompt
-          (echo "$PROMPT") | claude --dangerously-skip-permissions
