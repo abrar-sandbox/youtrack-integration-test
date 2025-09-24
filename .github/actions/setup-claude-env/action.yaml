@@ -1,5 +1,5 @@
-name: Setup Claude Environment
-description: Setup Node.js, install Claude CLI, and configure YouTrack MCP
+name: Set up Claude Environment
+description: Set up Node.js, install Claude CLI, and configure YouTrack MCP
 
 inputs:
   node-version:
@@ -20,7 +20,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Setup Node.js
+    - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
@@ -30,11 +30,11 @@ runs:
       run: |
         npm install -g @anthropic-ai/claude-code
 
-    - name: Add npm global bin to PATH
+    - name: Add npm Global Bin to PATH
       shell: bash
       run: echo "$(npm config get prefix)/bin" >> "$GITHUB_PATH"
 
-    - name: Add YouTrack MCP server to Claude
+    - name: Configure YouTrack MCP Server
       shell: bash
       run: |
         YOUTRACK_URL="${{ inputs.youtrack-url }}" \
@@ -47,7 +47,6 @@ runs:
             -e YOUTRACK_CLOUD \
             tonyzorin/youtrack-mcp:latest
 
-    - name: Verify MCP server is added
+    - name: Verify MCP Server Registration
       shell: bash
       run: claude mcp list
-

@@ -1,0 +1,55 @@
+name: Discover Repositories from YouTrack Ticket
+description: Analyze a YouTrack ticket with Claude and emit a JSON list of accessible repositories
+
+inputs:
+  ticket-id:
+    description: 'YouTrack ticket ID'
+    required: true
+  ticket-title:
+    description: 'YouTrack ticket title'
+    required: true
+  ticket-description:
+    description: 'YouTrack ticket description'
+    required: true
+  github-organization:
+    description: 'GitHub organization to check for repositories'
+    required: false
+    default: 'ideascale'
+
+runs:
+  using: composite
+  steps:
+    - name: Build Discovery Prompt
+      shell: bash
+      run: |
+        cat >>"$GITHUB_ENV" <<'EOF'
+        PROMPT<<__PROMPT__
+        Ticket ID: ${{ inputs.ticket-id }}
+        Title: ${{ inputs.ticket-title }}
+        Description: ${{ inputs.ticket-description }}
+
+        Task:
+        - Identify GitHub repositories referenced in this ticket that likely require changes.
+        - Consider explicit repo mentions (e.g., repositories:, repos: ).
+        - Validate accessibility in the ${{ inputs.github-organization }} org using gh.
+        - Respond with JSON only (no prose, no code fences) in the exact shape:
+          { "repositories": ["org/repo", ...] }
+        - If none found, return { "repositories": [] }.
+        __PROMPT__
+        EOF
+
+    - id: claude
+      name: Discover Repositories with Claude
+      shell: bash
+      run: |
+        set -euo pipefail
+        RESPONSE=$(printf '%s' "$PROMPT" | claude --dangerously-skip-permissions)
+        echo "Raw Claude response: $RESPONSE" >&2
+        REPOS_JSON=$(printf '%s' "$RESPONSE" | jq -c '.repositories // []' 2>/dev/null || echo '[]')
+        # Expose as step output for the composite action
+        echo "repositories=$REPOS_JSON" >> "$GITHUB_OUTPUT"
+
+outputs:
+  repositories:
+    description: 'Discovered repositories as a JSON array string (e.g., ["org/repo"])'
+    value: ${{ steps.claude.outputs.repositories }}
