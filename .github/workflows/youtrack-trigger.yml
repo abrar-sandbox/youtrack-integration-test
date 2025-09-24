@@ -6,17 +6,32 @@ on:
 
 jobs:
   plan-ticket-solution:
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
-    uses: ./.github/workflows/analyse-ticket.yml
-    with:
-      ticket_id: ${{ github.event.client_payload.issueId }}
-      title: ${{ github.event.client_payload.title }}
-      description: ${{ github.event.client_payload.description }}
-      youtrack_url: 'https://abrar-sandbox.youtrack.cloud'
-      github_organization: 'abrar-sandbox'
-    secrets:
-      YOUTRACK_API_TOKEN: ${{ secrets.YOUTRACK_API_TOKEN }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GH_PAT: ${{ secrets.GH_PAT }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Claude Environment
+        uses: ./.github/actions/setup-claude-env
+        with:
+          node-version: '22'
+          youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
+          youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
+
+      - name: Process ticket with Claude
+        id: process
+        uses: ./.github/actions/youtrack-process-ticket
+        with:
+          ticket_id: ${{ github.event.client_payload.issueId }}
+          title: ${{ github.event.client_payload.title }}
+          description: ${{ github.event.client_payload.description }}
+          github_organization: 'abrar-sandbox'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      # - name: SSH into runner to Debug
+      #   uses: owenthereal/action-upterm@v1
