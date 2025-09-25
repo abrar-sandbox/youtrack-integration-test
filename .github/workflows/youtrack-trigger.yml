@@ -38,7 +38,7 @@ jobs:
 
   aggregate-plan:
     name: Generate Plans and Create Issues
-    needs: [discover-repos]
+    needs: [ discover-repos ]
     if: ${{ needs.discover-repos.outputs.repos != '' && needs.discover-repos.outputs.repos != '[]' }}
     runs-on: ubuntu-latest
     permissions:
@@ -69,12 +69,13 @@ jobs:
             git clone --depth 1 "https://x-access-token:${GH_PAT}@github.com/${R}.git" "repos/$SAFE"
           done
 
-      - name: Build Cross-Repo Analysis Prompt
+      - name: Build Cross-Repo Analysis Prompt (Claude will post plans as issues on Github and comment on Youtrack)
         env:
           TICKET_ID: ${{ github.event.client_payload.issueId }}
           TITLE: ${{ github.event.client_payload.title }}
           DESC: ${{ github.event.client_payload.description }}
           REPOS_JSON: ${{ needs.discover-repos.outputs.repos }}
+          YOUTRACK_URL: 'https://abrar-sandbox.youtrack.cloud'
         shell: bash
         run: |
           cat >>"$GITHUB_ENV" <<'EOF'
@@ -88,82 +89,36 @@ jobs:
           Context:
           - All repositories are checked out under the current working directory (repos/). Each repo is in a subfolder named "org__repo" (slash replaced by double underscore).
           - You may read actual files and directories as needed to form an implementation plan across repos. Avoid exhaustive scans; prioritize manifests, entrypoints, services, and files relevant to the ticket.
+          - The GitHub CLI (gh) is available and authenticated via token environment. The YouTrack MCP server is registered as "youtrack" and can be used to post comments.
 
           Task:
           - Analyze the checked-out repositories and the ticket requirements.
-          - Produce JSON only (no prose, no code fences) with this exact shape:
-            { "plans": { "org/repo": { "issue_title": "...", "issue_body": "..." } }, "order": ["org/repo", ...] }
-          - Plans must be repo-specific. Do not duplicate the same text across repos; tailor each plan to the code in that repo and reference repo-specific files/paths. When steps depend on other repos, note them (e.g., "Depends on org/other-repo#123").
-          - Keep issue_body concise but actionable (Markdown allowed). Include a checklist and acceptance criteria.
+          - For each repo in ${REPOS_JSON} that exists under repos/, craft a repo-specific implementation plan and then create a GitHub issue via gh.
+          - Issue title MUST be exactly: "${TICKET_ID} ${TITLE}".
+          - Issue body MUST include a hyperlink to the YouTrack ticket: [${TICKET_ID}](${YOUTRACK_URL}/issue/${TICKET_ID}), followed by the repo-specific plan (Markdown allowed: checklist and acceptance criteria encouraged). Ensure content is tailored to each repo and references actual files/paths.
+          - Note cross-repo dependencies where relevant.
+          - After creating issues, post a single comment to YouTrack ticket ${TICKET_ID} listing the created issue links using the YouTrack MCP tool named "youtrack".
+          - Finally, print a concise summary of actions taken (e.g., JSON mapping repos to created issue URLs) for logging.
           __PROMPT__
           EOF
 
-      - name: Analyze Repos and Generate Plans
+      - name: Invoke Claude with Prompt
         working-directory: repos
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         shell: bash
         run: |
           set -euo pipefail
           RESPONSE=$(printf '%s' "$PROMPT" | claude --dangerously-skip-permissions)
-          echo "$RESPONSE" > ../claude_output.json
-
-      - name: Create Per-Repo Issues
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          TICKET_ID: ${{ github.event.client_payload.issueId }}
-          YOUTRACK_URL: 'https://abrar-sandbox.youtrack.cloud'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$GITHUB_WORKSPACE"
-          jq -e '.plans' claude_output.json >/dev/null
-          : > issue_links.ndjson
-          for R in $(jq -r '.plans | keys[]' claude_output.json); do
-            TITLE=$(jq -r --arg r "$R" '.plans[$r].issue_title' claude_output.json)
-            BODY=$(jq -r --arg r "$R" '.plans[$r].issue_body' claude_output.json)
-            echo "Creating issue in $R: $TITLE"
-            BODY_FILE=$(mktemp)
-            {
-              printf '%s\n\n' "$BODY"
-              printf 'Source ticket: [%s](%s/issue/%s)\n' "$TICKET_ID" "$YOUTRACK_URL" "$TICKET_ID"
-            } > "$BODY_FILE"
-            gh issue create \
-              --repo "$R" \
-              --title "$TITLE" \
-              --body-file "$BODY_FILE" \
-              --json url,number,title \
-              -q '{repo:"'$R'", url: .url, number: .number, title: .title}' \
-              >> issue_links.ndjson
-          done
-
-      - name: Post YouTrack Comment with Issue Links
-        env:
-          YOUTRACK_API_TOKEN: ${{ secrets.YOUTRACK_API_TOKEN }}
-          TICKET_ID: ${{ github.event.client_payload.issueId }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Posting issue links back to YouTrack ticket $TICKET_ID"
-          LINKS_MD=$(jq -r 'reduce inputs as $i (""; .+ "- [\($i.title)](\($i.url)) in \($i.repo)\\n")' issue_links.ndjson)
-          if [ -z "$LINKS_MD" ]; then
-            echo "No links generated; skipping YouTrack comment." >&2
-            exit 1
-          fi
-          COMMENT_PAYLOAD=$(jq -n --arg text "Created GitHub issues for implementation plans:\n\n$LINKS_MD" '{text: $text}')
-          curl -sS -X POST \
-            -H "Authorization: Bearer ${YOUTRACK_API_TOKEN}" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            "https://abrar-sandbox.youtrack.cloud/api/issues/${TICKET_ID}/comments?fields=id,text,author(login)" \
-            -d "$COMMENT_PAYLOAD"
+          echo "$RESPONSE"
 
       # - name: SSH into runner to Debug
       #   uses: owenthereal/action-upterm@v1
 
   no-repos:
     name: "Notify YouTrack: No Repositories Found"
-    needs: [discover-repos]
+    needs: [ discover-repos ]
     if: ${{ needs.discover-repos.outputs.repos == '' || needs.discover-repos.outputs.repos == '[]' }}
     runs-on: ubuntu-latest
     steps:
