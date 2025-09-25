@@ -78,7 +78,9 @@ jobs:
           YOUTRACK_URL: 'https://abrar-sandbox.youtrack.cloud'
         shell: bash
         run: |
-          cat >>"$GITHUB_ENV" <<'EOF'
+          set -euo pipefail
+          # Write a multi-line PROMPT variable into $GITHUB_ENV with expanded env vars
+          cat >>"$GITHUB_ENV" <<EOF
           PROMPT<<__PROMPT__
           YouTrack Ticket:
           - ID: ${TICKET_ID}
@@ -87,20 +89,57 @@ jobs:
           ${DESC}
 
           Context:
-          - All repositories are checked out under the current working directory (repos/). Each repo is in a subfolder named "org__repo" (slash replaced by double underscore).
-          - You may read actual files and directories as needed to form an implementation plan across repos. Avoid exhaustive scans; prioritize manifests, entrypoints, services, and files relevant to the ticket.
-          - The GitHub CLI (gh) is available and authenticated via token environment. The YouTrack MCP server is registered as "youtrack" and can be used to post comments.
+          - Repositories are checked out under ./repos. Each repo directory is named "org__repo" (slash replaced by double underscore).
+          - The GitHub CLI (gh) is available and authenticated via GH_TOKEN. The YouTrack MCP server is registered as "youtrack".
+          - You MUST read actual files before proposing changes; cite concrete file paths and snippets you used. Avoid generic statements.
 
           Task:
-          - Analyze the checked-out repositories and the ticket requirements.
-          - For each repo in ${REPOS_JSON} that exists under repos/, craft a repo-specific implementation plan and then create a GitHub issue via gh.
-          - Issue title MUST be exactly: "${TICKET_ID} ${TITLE}".
-          - Issue body MUST include a hyperlink to the YouTrack ticket: [${TICKET_ID}](${YOUTRACK_URL}/issue/${TICKET_ID}), followed by the repo-specific plan (Markdown allowed: checklist and acceptance criteria encouraged). Ensure content is tailored to each repo and references actual files/paths.
-          - Note cross-repo dependencies where relevant.
-          - After creating issues, post a single comment to YouTrack ticket ${TICKET_ID} listing the created issue links using the YouTrack MCP tool named "youtrack".
-          - Finally, print a concise summary of actions taken (e.g., JSON mapping repos to created issue URLs) for logging.
+          For each repository in ${REPOS_JSON} that exists under repos/:
+          1) Create a GitHub issue in that repo via gh with EXACT title: "${TICKET_ID} ${TITLE}" and apply the "plan:pending" label (create the label first if it doesn't exist).
+          2) The issue body MUST follow this template exactly and be tailored to the repo:
+
+          ## Ticket
+          [${TICKET_ID}](${YOUTRACK_URL}/issue/${TICKET_ID})
+
+          ## Summary
+          A concise paragraph summarizing the proposed implementation for THIS repo.
+
+          ## Proposed changes (file-by-file)
+          For each file to change:
+          - Path: path/to/file
+          - Change: what to add/modify/remove and why.
+          - Include a code block with either a unified diff or the exact snippet to insert/replace.
+
+          ## Acceptance criteria
+          - Bullet list of verifiable outcomes tied to the ticket.
+
+          3) After creating issues across repos, post a single comment to YouTrack ticket ${TICKET_ID} using the "youtrack" MCP tool listing the created issue URLs.
+
+          Output:
+          - Print a compact JSON at the end: { "created": { "org/repo": "https://github.com/org/repo/issues/N", ... } }.
+
+          Quality bar:
+          - Do NOT output boilerplate. Reference concrete files found in each repo.
+          - Provide code blocks for proposed changes. If no changes are needed in a repo, explain why with file references.
+
           __PROMPT__
           EOF
+
+      - name: Preview Expanded Prompt
+        env:
+          TICKET_ID: ${{ github.event.client_payload.issueId }}
+          TITLE: ${{ github.event.client_payload.title }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "Ticket: ${TICKET_ID} ${TITLE}";
+            echo "";
+            echo "Prompt preview (first 1200 chars):";
+            # PROMPT is populated from \$GITHUB_ENV in the previous step
+            echo "${PROMPT}" | head -c 1200;
+            echo "";
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Invoke Claude with Prompt
         working-directory: repos
