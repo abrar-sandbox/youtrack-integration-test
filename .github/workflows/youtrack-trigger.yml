@@ -95,11 +95,11 @@ jobs:
 
           Task:
           For each repository in ${REPOS_JSON} that exists under repos/:
-          1) Create a GitHub issue in that repo via gh with EXACT title: "${TICKET_ID} ${TITLE}" and apply the "plan:pending" label (create the label first if it doesn't exist).
+          1) Create a GitHub issue in that repo via gh with title containing the ticket id and title and apply the "plan:pending" label (create the label first if it doesn't exist).
           2) The issue body MUST follow this template exactly and be tailored to the repo:
 
           ## Ticket
-          [${TICKET_ID}](${YOUTRACK_URL}/issue/${TICKET_ID})
+          Provide a link to the YouTrack ticket: ${YOUTRACK_URL}/issue/${TICKET_ID}
 
           ## Summary
           A concise paragraph summarizing the proposed implementation for THIS repo.
