@@ -1,0 +1,256 @@
+name: Plan Iterate (Scoped and Replan All)
+
+on:
+  repository_dispatch:
+    types: [ plan-feedback, plan-replan-all ]
+
+jobs:
+  scoped-iterate:
+    if: ${{ github.event.action == 'plan-feedback' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: plan-${{ github.event.client_payload.ticketId }}-${{ github.event.client_payload.repo }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout Orchestrator Repo
+        uses: actions/checkout@v4
+
+      - name: Set up Claude Environment
+        uses: ./.github/actions/setup-claude-env
+        with:
+          node-version: '22'
+          youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
+          youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
+
+      - name: Prepare Event Context
+        id: ctx
+        shell: bash
+        run: |
+          set -euo pipefail
+          TICKET_ID="${{ github.event.client_payload.ticketId }}"
+          REPO="${{ github.event.client_payload.repo }}"
+          ISSUE_NUMBER="${{ github.event.client_payload.issueNumber }}"
+          COMMENT_ID="${{ github.event.client_payload.commentId }}"
+          COMMENT_BODY="${{ github.event.client_payload.commentBody }}"
+          AUTHOR="${{ github.event.client_payload.author }}"
+          SAFE_REPO=$(printf '%s' "$REPO" | tr '/' '__')
+          echo "ticket_id=$TICKET_ID" >> "$GITHUB_OUTPUT"
+          echo "repo=$REPO" >> "$GITHUB_OUTPUT"
+          echo "safe_repo=$SAFE_REPO" >> "$GITHUB_OUTPUT"
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "comment_id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+          # Save comment body to a file to avoid env escaping issues
+          printf '%s' "$COMMENT_BODY" > comment.txt
+
+      - name: Clone Target Repository (Scoped)
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p repos
+          git clone --depth 1 "https://x-access-token:${GH_PAT}@github.com/${{ steps.ctx.outputs.repo }}.git" "repos/${{ steps.ctx.outputs.safe_repo }}"
+
+      - name: Build Scoped Iteration Prompt
+        env:
+          TICKET_ID: ${{ steps.ctx.outputs.ticket_id }}
+          TARGET_REPO: ${{ steps.ctx.outputs.repo }}
+          SAFE_REPO: ${{ steps.ctx.outputs.safe_repo }}
+          ISSUE_NUMBER: ${{ steps.ctx.outputs.issue_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          COMMENT_BODY=$(cat comment.txt)
+          cat >>"$GITHUB_ENV" <<EOF
+          PROMPT<<__PROMPT__
+          YouTrack Ticket: \${TICKET_ID}
+
+          Context:
+          - The target repository is \${TARGET_REPO} cloned under ./repos/\${SAFE_REPO}
+          - The GitHub CLI (gh) is available and authenticated via GH_TOKEN.
+          - There is a bot-managed state comment identified by the marker "<!-- bot-state:youtrack-orchestrator -->" on the issue in \${TARGET_REPO}, if present.
+          - The feedback comment that triggered this iteration is:
+          ---
+          \${COMMENT_BODY}
+          ---
+
+          Task:
+          1) Read the current issue body for issue \${ISSUE_NUMBER} in \${TARGET_REPO} via gh and the bot-state JSON (if present).
+          2) Analyze actual files in ./repos/\${SAFE_REPO} relevant to the requested refinements. Cite concrete file paths you read.
+          3) Update the issue plan sections with precise file-by-file proposed changes (unified diffs or exact snippets).
+          4) Manage labels appropriately:
+             - If refinement requested, ensure "plan:changes-requested" is present and "plan:accepted" is absent.
+          5) Upsert or create a single bot-managed state comment with marker:
+             <!-- bot-state:youtrack-orchestrator -->
+             {
+               "ticketId": "\${TICKET_ID}",
+               "planVersion": "<increment or maintain>",
+               "lastCommentId": "${{ steps.ctx.outputs.comment_id }}",
+               "discoveredRepos": "<keep existing if present>",
+               "labels": "<final labels>",
+               "updatedAt": "<ISO timestamp>"
+             }
+
+          Requirements:
+          - Do NOT duplicate state comments; update the existing one if it exists.
+          - Output a compact JSON at the end: { "updated": true, "repo": "\${TARGET_REPO}", "issue": \${ISSUE_NUMBER} }.
+
+          __PROMPT__
+          EOF
+
+      - name: Preview Prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "Scoped iteration for ${{ steps.ctx.outputs.repo }} issue #${{ steps.ctx.outputs.issue_number }} (ticket ${{ steps.ctx.outputs.ticket_id }})";
+            echo "";
+            echo "Prompt (first 1000 chars):";
+            echo "${PROMPT}" | head -c 1000;
+            echo "";
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Invoke Claude (Scoped)
+        working-directory: repos/${{ steps.ctx.outputs.safe_repo }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE=$(printf '%s' "$PROMPT" | claude --dangerously-skip-permissions)
+          echo "$RESPONSE"
+
+  replan-all:
+    if: ${{ github.event.action == 'plan-replan-all' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: plan-${{ github.event.client_payload.ticketId }}-all
+      cancel-in-progress: false
+    steps:
+      - name: Checkout Orchestrator Repo
+        uses: actions/checkout@v4
+
+      - name: Set up Claude Environment
+        uses: ./.github/actions/setup-claude-env
+        with:
+          node-version: '22'
+          youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
+          youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
+
+      - name: Prepare Event Context
+        id: ctx
+        shell: bash
+        run: |
+          set -euo pipefail
+          TICKET_ID="${{ github.event.client_payload.ticketId }}"
+          REPO="${{ github.event.client_payload.repo }}"
+          ISSUE_NUMBER="${{ github.event.client_payload.issueNumber }}"
+          echo "ticket_id=$TICKET_ID" >> "$GITHUB_OUTPUT"
+          echo "seed_repo=$REPO" >> "$GITHUB_OUTPUT"
+          echo "seed_issue=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Extract discovered repos from bot-state
+        id: discover
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OWNER_REPO="${{ steps.ctx.outputs.seed_repo }}"
+          ISSUE_NUMBER="${{ steps.ctx.outputs.seed_issue }}"
+          # Fetch issue comments and body
+          DATA=$(gh issue view "$ISSUE_NUMBER" --repo "$OWNER_REPO" --json body,comments)
+          # Try to find bot-state JSON in comments first, then in body
+          STATE=$(printf '%s' "$DATA" | jq -r '
+            (.comments[]?.body // empty) as $b |
+            select($b | contains("<!-- bot-state:youtrack-orchestrator -->")) |
+            ($b | capture("<!-- bot-state:youtrack-orchestrator -->\\s*(?<json>\\{[\\s\\S]*\\})") .json) ' | tail -n1 || true)
+          if [ -z "$STATE" ]; then
+            STATE=$(printf '%s' "$DATA" | jq -r '
+              .body as $b |
+              if ($b | contains("<!-- bot-state:youtrack-orchestrator -->")) then
+                ($b | capture("<!-- bot-state:youtrack-orchestrator -->\\s*(?<json>\\{[\\s\\S]*\\})") .json)
+              else empty end' || true)
+          fi
+          if [ -n "$STATE" ]; then
+            REPOS_JSON=$(printf '%s' "$STATE" | jq -c '.discoveredRepos // []')
+          fi
+          if [ -z "${REPOS_JSON:-}" ] || [ "$REPOS_JSON" = "null" ]; then
+            # Fallback to just the seed repo
+            REPOS_JSON=$(jq -cn --arg r "${{ steps.ctx.outputs.seed_repo }}" '[ $r ]')
+          fi
+          echo "repos=$REPOS_JSON" >> "$GITHUB_OUTPUT"
+
+      - name: Clone All Discovered Repositories
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          REPOS_JSON: ${{ steps.discover.outputs.repos }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p repos
+          echo "$REPOS_JSON" | jq -r '.[]' | while read -r R; do
+            SAFE=$(echo "$R" | tr '/' '__')
+            echo "Cloning $R into repos/$SAFE"
+            git clone --depth 1 "https://x-access-token:${GH_PAT}@github.com/${R}.git" "repos/$SAFE"
+          done
+
+      - name: Build Replan-All Prompt
+        env:
+          TICKET_ID: ${{ steps.ctx.outputs.ticket_id }}
+          REPOS_JSON: ${{ steps.discover.outputs.repos }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >>"$GITHUB_ENV" <<EOF
+          PROMPT<<__PROMPT__
+          YouTrack Ticket: \${TICKET_ID}
+
+          Context:
+          - Repositories are checked out under ./repos with names "org__repo".
+          - The set of repos to consider (JSON): \${REPOS_JSON}
+          - The GitHub CLI (gh) is available and authenticated via GH_TOKEN.
+          - Each target repo already has a planning issue for this ticket with a bot-state comment marker:
+            <!-- bot-state:youtrack-orchestrator -->
+
+          Task:
+          1) For each repo in \${REPOS_JSON}, open the existing planning issue for this ticket.
+          2) Re-synthesize the plan across repos to ensure consistency, reading concrete files from each repo. Cite file paths.
+          3) Upsert each issue body with precise proposed changes and keep acceptance labels intact unless contradicted by new analysis.
+          4) Update the single bot-state comment per repo with new planVersion and updatedAt; preserve discoveredRepos.
+
+          Output:
+          - Print a compact JSON { "updatedRepos": ["org/repo", ...] } at the end.
+
+          __PROMPT__
+          EOF
+
+      - name: Preview Prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "Replan-all for ticket ${{ steps.ctx.outputs.ticket_id }}";
+            echo "";
+            echo "Prompt (first 1000 chars):";
+            echo "${PROMPT}" | head -c 1000;
+            echo "";
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Invoke Claude (Replan All)
+        working-directory: repos
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESPONSE=$(printf '%s' "$PROMPT" | claude --dangerously-skip-permissions)
+          echo "$RESPONSE"

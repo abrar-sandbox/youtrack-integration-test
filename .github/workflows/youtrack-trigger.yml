@@ -55,6 +55,25 @@ jobs:
           youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
           youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
 
+      - name: Environment Diagnostics (Claude, MCP, gh, docker)
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "claude --version";
+            claude --version || true;
+            echo "";
+            echo "claude mcp list";
+            claude mcp list || true;
+            echo "";
+            echo "gh --version && gh auth status";
+            gh --version || true;
+            gh auth status || true;
+            echo "";
+            echo "docker --version";
+            docker --version || true;
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Clone Target Repositories
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
@@ -98,8 +117,8 @@ jobs:
           1) Create a GitHub issue in that repo via gh with title containing the ticket id and title and apply the "plan:pending" label (create the label first if it doesn't exist).
           2) The issue body MUST follow this template exactly and be tailored to the repo:
 
-          ## Ticket
-          Provide a link to the YouTrack ticket: ${YOUTRACK_URL}/issue/${TICKET_ID}
+          ## Ticket Link
+          ${YOUTRACK_URL}/issue/${TICKET_ID}
 
           ## Summary
           A concise paragraph summarizing the proposed implementation for THIS repo.
@@ -125,6 +144,16 @@ jobs:
           __PROMPT__
           EOF
 
+      - name: Persist Full Prompt Artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "${PROMPT}" > repos/prompt.txt
+          BYTES=$(wc -c < repos/prompt.txt | tr -d ' ')
+          {
+            echo "Saved full PROMPT to repos/prompt.txt (${BYTES} bytes)";
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Preview Expanded Prompt
         env:
           TICKET_ID: ${{ github.event.client_payload.issueId }}
@@ -141,19 +170,42 @@ jobs:
             echo "";
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Invoke Claude with Prompt
+      - name: Invoke Claude with Prompt (capture full response)
         working-directory: repos
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
+          YOUTRACK_URL: 'https://abrar-sandbox.youtrack.cloud'
+          YOUTRACK_API_TOKEN: ${{ secrets.YOUTRACK_API_TOKEN }}
+          YOUTRACK_CLOUD: 'true'
         shell: bash
         run: |
           set -euo pipefail
           RESPONSE=$(printf '%s' "$PROMPT" | claude --dangerously-skip-permissions)
-          echo "$RESPONSE"
+          printf '%s' "$RESPONSE" > ./claude_response.txt
+          BYTES=$(wc -c < ./claude_response.txt | tr -d ' ')
+          {
+            echo "Claude response saved to repos/claude_response.txt (${BYTES} bytes)";
+            echo "";
+            echo "Response preview (first 2000 chars):";
+            head -c 2000 ./claude_response.txt || true;
+            echo "";
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Also echo truncated to logs for quick view
+          echo "$RESPONSE" | head -c 2000
 
-      # - name: SSH into runner to Debug
-      #   uses: owenthereal/action-upterm@v1
+      - name: Upload Planning Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: planning-artifacts
+          path: |
+            repos/prompt.txt
+            repos/claude_response.txt
+          retention-days: 7
+
+      - name: SSH into runner to Debug (guarded)
+        if: ${{ github.event.client_payload.debug == true }}
+        uses: owenthereal/action-upterm@v1
 
   no-repos:
     name: "Notify YouTrack: No Repositories Found"
