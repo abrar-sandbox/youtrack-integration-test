@@ -1,0 +1,142 @@
+name: Plan Feedback Forwarder
+description: Forward slash commands from issue comments to the orchestrator repository
+
+inputs:
+  github-token:
+    description: 'GitHub token with repository_dispatch permissions to orchestrator repo'
+    required: true
+  orchestrator-repo:
+    description: 'Repository to send dispatches to (org/repo format)'
+    required: false
+    default: 'abrar-sandbox/youtrack-integration-test'
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure GitHub token is available
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.github-token }}" ]; then
+          echo "github-token input is required to call repository_dispatch on the orchestrator repo." >&2
+          exit 1
+        fi
+
+    - name: Evaluate comment for actionability
+      id: eval
+      shell: bash
+      env:
+        BODY: ${{ github.event.comment.body }}
+        AUTHOR: ${{ github.event.comment.user.login }}
+        AUTHOR_TYPE: ${{ github.event.comment.user.type }}
+      run: |
+        set -euo pipefail
+
+        # Ignore bot-authored comments
+        if [ "${AUTHOR_TYPE}" = "Bot" ]; then
+          echo "is_actionable=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Normalize body (strip leading spaces)
+        NORM="$(printf '%s' "$BODY" | sed -e 's/^[[:space:]]*//')"
+
+        # Action commands we consider:
+        # - /accept             (scoped execution for this repo)
+        # - /accept-all         (cross-repo execution for all repos in ticket)
+        # - /refine ...         (scoped plan iteration)
+        # - /replan all         (cross-repo plan re-synthesis)
+        if printf '%s' "$NORM" | grep -Ei -q '^/accept-all\b'; then
+          echo "kind=accept-all" >> "$GITHUB_OUTPUT"
+          echo "is_actionable=true" >> "$GITHUB_OUTPUT"
+        elif printf '%s' "$NORM" | grep -Ei -q '^/accept\b'; then
+          echo "kind=accept" >> "$GITHUB_OUTPUT"
+          echo "is_actionable=true" >> "$GITHUB_OUTPUT"
+        elif printf '%s' "$NORM" | grep -Ei -q '^/replan[[:space:]]+all\b'; then
+          echo "kind=replan-all" >> "$GITHUB_OUTPUT"
+          echo "is_actionable=true" >> "$GITHUB_OUTPUT"
+        elif printf '%s' "$NORM" | grep -Ei -q '^/refine\b'; then
+          echo "kind=refine" >> "$GITHUB_OUTPUT"
+          echo "is_actionable=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "is_actionable=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Exit if not actionable
+      if: ${{ steps.eval.outputs.is_actionable != 'true' }}
+      shell: bash
+      run: echo "Comment is not actionable; skipping."
+
+    - name: Derive ticketId from issue body (YouTrack link)
+      if: ${{ steps.eval.outputs.is_actionable == 'true' }}
+      id: ticket
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        OWNER: ${{ github.repository_owner }}
+        REPO: ${{ github.event.repository.name }}
+        ISSUE_NUMBER: ${{ github.event.issue.number }}
+      run: |
+        set -euo pipefail
+        BODY=$(gh api repos/${OWNER}/${REPO}/issues/${ISSUE_NUMBER} --jq '.body')
+        # Find the first YouTrack link with /issue/ID and extract the last path segment as the ID
+        URL=$(printf '%s' "$BODY" | grep -Eo 'https?://[^ )"]+/issue/[A-Za-z0-9_-]+' | head -n1 || true)
+        if [ -z "$URL" ]; then
+          echo "Could not locate YouTrack /issue/ link in issue body; set a ticket link per template." >&2
+          # Still proceed with a placeholder to avoid hard failure (optional)
+          echo "ticketId=UNKNOWN" >> "$GITHUB_OUTPUT"
+        else
+          TICKET_ID="${URL##*/}"
+          echo "ticketId=$TICKET_ID" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Dispatch to Orchestrator (Scoped / Replan-All / Accept / Accept-All)
+      if: ${{ steps.eval.outputs.is_actionable == 'true' }}
+      shell: bash
+      env:
+        GH_PAT: ${{ inputs.github-token }}
+        ORCHESTRATOR_REPO: ${{ inputs.orchestrator-repo }}
+        KIND: ${{ steps.eval.outputs.kind }}
+        TICKET_ID: ${{ steps.ticket.outputs.ticketId }}
+        OWNER_REPO: ${{ github.repository }}
+        ISSUE_NUMBER: ${{ github.event.issue.number }}
+        COMMENT_ID: ${{ github.event.comment.id }}
+        COMMENT_BODY: ${{ github.event.comment.body }}
+        AUTHOR: ${{ github.event.comment.user.login }}
+      run: |
+        set -euo pipefail
+        case "$KIND" in
+          accept-all) EVENT_TYPE="plan-accept-all" ;;
+          accept)     EVENT_TYPE="plan-accept" ;;
+          replan-all) EVENT_TYPE="plan-replan-all" ;;
+          refine)     EVENT_TYPE="plan-feedback" ;;
+          *)          EVENT_TYPE="plan-feedback" ;;
+        esac
+
+        PAYLOAD=$(jq -cn \
+          --arg et "$EVENT_TYPE" \
+          --arg ticketId "$TICKET_ID" \
+          --arg repo "$OWNER_REPO" \
+          --argjson issueNumber "$ISSUE_NUMBER" \
+          --argjson commentId "$COMMENT_ID" \
+          --arg commentBody "$COMMENT_BODY" \
+          --arg author "$AUTHOR" \
+          '{
+            event_type: $et,
+            client_payload: {
+              ticketId: $ticketId,
+              repo: $repo,
+              issueNumber: $issueNumber,
+              commentId: $commentId,
+              commentBody: $commentBody,
+              author: $author
+            }
+          }')
+
+        curl -sS -X POST \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${GH_PAT}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/${ORCHESTRATOR_REPO}/dispatches" \
+          -d "$PAYLOAD"
+
+        echo "Dispatched ${EVENT_TYPE} for ticket ${TICKET_ID} from ${OWNER_REPO}#${ISSUE_NUMBER} comment ${COMMENT_ID}"

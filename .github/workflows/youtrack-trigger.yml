@@ -98,7 +98,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Write a multi-line PROMPT variable into $GITHUB_ENV with expanded env vars
           cat >>"$GITHUB_ENV" <<EOF
           PROMPT<<__PROMPT__
           YouTrack Ticket:
