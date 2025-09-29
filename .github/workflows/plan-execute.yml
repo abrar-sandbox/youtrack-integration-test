@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat >>"$GITHUB_ENV" <<'EOF'
+          cat >>"$GITHUB_ENV" <<EOF
           PROMPT<<__PROMPT__
           YouTrack Ticket: ${TICKET_ID}
 
@@ -232,7 +232,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat >>"$GITHUB_ENV" <<'EOF'
+          cat >>"$GITHUB_ENV" <<EOF
           PROMPT<<__PROMPT__
           YouTrack Ticket: ${TICKET_ID}
 
