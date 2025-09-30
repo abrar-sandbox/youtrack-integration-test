@@ -202,8 +202,8 @@ jobs:
               # Extract org/repo and issue number from https://github.com/org/repo/issues/N
               REPO=$(echo "$url" | sed -E 's|https://github\.com/([^/]+/[^/]+)/issues/.*|\1|')
               ISSUE=$(echo "$url" | sed -E 's|.*/issues/([0-9]+)|\1|')
-              REPOS_JSON=$(echo "$REPOS_JSON" | jq --arg r "$REPO" '. + [$r] | unique')
-              REPO_ISSUE_MAP=$(echo "$REPO_ISSUE_MAP" | jq --arg r "$REPO" --argjson i "$ISSUE" '.[$r] = $i')
+              REPOS_JSON=$(echo "$REPOS_JSON" | jq -c --arg r "$REPO" '. + [$r] | unique')
+              REPO_ISSUE_MAP=$(echo "$REPO_ISSUE_MAP" | jq -c --arg r "$REPO" --argjson i "$ISSUE" '.[$r] = $i')
             done <<< "$RELATED_URLS"
           fi
 
