@@ -29,12 +29,26 @@ runs:
         Description: ${{ inputs.ticket-description }}
 
         Task:
-        - Identify GitHub repositories referenced in this ticket that likely require changes.
-        - Consider explicit repo mentions (e.g., repositories:, repos: ).
-        - Validate accessibility in the ${{ inputs.github-organization }} org using gh.
+        Find repositories that are EXPLICITLY mentioned in the ticket title or description text.
+
+        What counts as explicit mention:
+        - Direct repo names: "simple-todo", "user-service", "api-gateway"
+        - Repository lists: "repositories: repo1, repo2" or "repos: repo1, repo2"
+        - GitHub URLs: "https://github.com/org/repo-name"
+        - Specific references: "update the simple-todo repository"
+
+        What does NOT count:
+        - General statements like "update the frontend" or "fix the API"
+        - Vague references without specific repository names
+        - Assumptions about what might need changes
+
+        Instructions:
+        - ONLY return repositories that are explicitly named in the ticket text
+        - Validate accessibility in the ${{ inputs.github-organization }} org using gh
+        - If NO repositories are explicitly mentioned or none of the repos are accessible return empty array
         - Respond with JSON only (no prose, no code fences) in the exact shape:
           { "repositories": ["org/repo", ...] }
-        - If none found, return { "repositories": [] }.
+        - If none explicitly found, return { "repositories": [] }
         __PROMPT__
         EOF
 
