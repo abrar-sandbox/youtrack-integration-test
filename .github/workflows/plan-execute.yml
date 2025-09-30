@@ -1,4 +1,5 @@
 name: Plan Execute (Scoped and Accept All)
+run-name: "${{ github.event.action == 'plan-accept' && format('[{0}] Implement accepted plan: {1}', github.event.client_payload.ticketId, github.event.client_payload.repo) || format('[{0}] Implement all plans', github.event.client_payload.ticketId) }}"
 
 on:
   repository_dispatch:
@@ -74,8 +75,7 @@ jobs:
           Context:
           - Target repository: ${TARGET_REPO} cloned under ./repos/${SAFE_REPO}
           - The GitHub CLI (gh) is available and authenticated via GH_TOKEN.
-          - Use a single bot-managed state comment identified by:
-            <!-- bot-state:youtrack-orchestrator -->
+          - The YouTrack MCP server is registered as "youtrack".
           - The accepted plan is in the planning issue #${ISSUE_NUMBER} for this ticket.
 
           Task (scoped execution):
@@ -91,27 +91,21 @@ jobs:
              - Title includes the ticket ID and a concise description.
              - Body lists changed files with brief rationale and references to the plan steps.
              - Apply label "exec:in-progress".
-          7) Upsert the bot-state comment in the planning issue with:
-             {
-               "ticketId": "${TICKET_ID}",
-               "planVersion": "<preserve or increment>",
-               "lastCommentId": "<preserve>",
-               "discoveredRepos": "<preserve>",
-               "labels": "<include exec:in-progress>",
-               "updatedAt": "<ISO timestamp>",
-               "execution": {
-                 "branch": "${BRANCH}",
-                 "prUrl": "<created PR url>",
-                 "headSha": "<latest commit sha>",
-                 "status": "in_progress"
-               }
-             }
-             - Only one bot-state comment must exist; update in place if present.
-          8) Post a concise YouTrack comment via the "youtrack" MCP tool with the PR link.
+          7) Update the planning issue #${ISSUE_NUMBER} with a comment containing the PR link and execution summary.
+          8) Post a YouTrack comment using the "youtrack" MCP tool with:
+             - Brief summary: "Implementation started for ${TARGET_REPO}"
+             - PR link: [direct link to the created PR]
+             - Files changed: [list of key files modified]
+             - Capture and note the YouTrack comment URL that gets returned.
 
           Output:
           - At the end, print a compact JSON like:
-            { "openedPR": "https://github.com/org/repo/pull/123", "branch": "${BRANCH}", "repo": "${TARGET_REPO}" }
+            {
+              "openedPR": "https://github.com/org/repo/pull/123",
+              "branch": "${BRANCH}",
+              "repo": "${TARGET_REPO}",
+              "youtrackCommentUrl": "https://abrar-sandbox.youtrack.cloud/issue/${TICKET_ID}#focus=Comments-X-Y"
+            }
 
           Quality:
           - No boilerplate. Reference concrete file paths you actually read/changed in ./repos/${SAFE_REPO}.
@@ -240,8 +234,7 @@ jobs:
           - Repositories checked out under ./repos with names "org__repo".
           - The set of repos to execute (JSON): ${REPOS_JSON}
           - The GitHub CLI (gh) is available and authenticated via GH_TOKEN.
-          - Each repo has a planning issue with a bot-state marker:
-            <!-- bot-state:youtrack-orchestrator -->
+          - The YouTrack MCP server is registered as "youtrack".
 
           Task (cross-repo execution):
           For each repo in ${REPOS_JSON}:
@@ -249,13 +242,24 @@ jobs:
             2) Determine default branch; create a feature branch "youtrack/${TICKET_ID}/plan-exec".
             3) Parse the accepted plan sections; read actual files; apply diffs/snippets.
             4) Commit and push branch; open PR; apply label "exec:in-progress".
-            5) Update bot-state with execution info (branch, prUrl, headSha, status).
-          After all repos:
-            - Print a compact JSON: { "opened": { "org/repo": "https://github.com/org/repo/pull/N", ... } }
+            5) Update the planning issue with a comment containing the PR link and execution summary.
+
+          After processing all repos:
+          6) Post a single YouTrack comment using the "youtrack" MCP tool with:
+             - Summary: "Implementation started across ${REPOS_JSON.length} repositories"
+             - List of all created PRs with repo names
+             - Brief overview of changes made
+             - Capture and note the YouTrack comment URL that gets returned.
+
+          Output:
+          - Print a compact JSON: {
+              "opened": { "org/repo": "https://github.com/org/repo/pull/N", ... },
+              "youtrackCommentUrl": "https://abrar-sandbox.youtrack.cloud/issue/${TICKET_ID}#focus=Comments-X-Y"
+            }
 
           Requirements:
           - Cite concrete file paths read/changed.
-          - Keep one bot-state comment per repo; update in place.
+          - Be specific about what was implemented in each repository.
 
           __PROMPT__
           EOF

@@ -1,4 +1,5 @@
 name: YouTrack Tag Trigger (dev-bot)
+run-name: "[${{ github.event.client_payload.issueId }}] Planning"
 
 on:
   repository_dispatch:

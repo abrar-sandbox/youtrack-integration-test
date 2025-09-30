@@ -1,4 +1,5 @@
 name: Plan Iterate (Scoped and Replan All)
+run-name: "${{ github.event.action == 'plan-feedback' && format('[{0}] Refine plan: {1}', github.event.client_payload.ticketId, github.event.client_payload.repo) || format('[{0}] Replan across repos', github.event.client_payload.ticketId) }}"
 
 on:
   repository_dispatch:
@@ -71,32 +72,33 @@ jobs:
           Context:
           - The target repository is ${TARGET_REPO} cloned under ./repos/${SAFE_REPO}
           - The GitHub CLI (gh) is available and authenticated via GH_TOKEN.
-          - There is a bot-managed state comment identified by the marker "<!-- bot-state:youtrack-orchestrator -->" on the issue in ${TARGET_REPO}, if present.
+          - The YouTrack MCP server is registered as "youtrack".
           - The feedback comment that triggered this iteration is:
           ---
           ${COMMENT_BODY}
           ---
 
           Task:
-          1) Read the current issue body for issue ${ISSUE_NUMBER} in ${TARGET_REPO} via gh and the bot-state JSON (if present).
+          1) Read the current issue body for issue ${ISSUE_NUMBER} in ${TARGET_REPO} via gh.
           2) Analyze actual files in ./repos/${SAFE_REPO} relevant to the requested refinements. Cite concrete file paths you read.
           3) Update the issue plan sections with precise file-by-file proposed changes (unified diffs or exact snippets).
           4) Manage labels appropriately:
              - If refinement requested, ensure "plan:changes-requested" is present and "plan:accepted" is absent.
-          5) Upsert or create a single bot-managed state comment with marker:
-             <!-- bot-state:youtrack-orchestrator -->
-             {
-               "ticketId": "${TICKET_ID}",
-               "planVersion": "<increment or maintain>",
-               "lastCommentId": "${{ steps.ctx.outputs.comment_id }}",
-               "discoveredRepos": "<keep existing if present>",
-               "labels": "<final labels>",
-               "updatedAt": "<ISO timestamp>"
-             }
+          5) Post a YouTrack comment using the "youtrack" MCP tool with:
+             - Summary: "Plan updated for ${TARGET_REPO} based on feedback"
+             - Key changes made to the plan
+             - Files analyzed and updated approach
+             - Link to the updated planning issue
+             - Capture and note the YouTrack comment URL that gets returned.
 
           Requirements:
-          - Do NOT duplicate state comments; update the existing one if it exists.
-          - Output a compact JSON at the end: { "updated": true, "repo": "${TARGET_REPO}", "issue": ${ISSUE_NUMBER} }.
+          - Be specific about what changed in the plan and why.
+          - Output a compact JSON at the end: {
+              "updated": true,
+              "repo": "${TARGET_REPO}",
+              "issue": ${ISSUE_NUMBER},
+              "youtrackCommentUrl": "https://abrar-sandbox.youtrack.cloud/issue/${TICKET_ID}#focus=Comments-X-Y"
+            }
 
           __PROMPT__
           EOF
@@ -217,17 +219,24 @@ jobs:
           - Repositories are checked out under ./repos with names "org__repo".
           - The set of repos to consider (JSON): ${REPOS_JSON}
           - The GitHub CLI (gh) is available and authenticated via GH_TOKEN.
-          - Each target repo already has a planning issue for this ticket with a bot-state comment marker:
-            <!-- bot-state:youtrack-orchestrator -->
+          - The YouTrack MCP server is registered as "youtrack".
 
           Task:
           1) For each repo in ${REPOS_JSON}, open the existing planning issue for this ticket.
           2) Re-synthesize the plan across repos to ensure consistency, reading concrete files from each repo. Cite file paths.
-          3) Upsert each issue body with precise proposed changes and keep acceptance labels intact unless contradicted by new analysis.
-          4) Update the single bot-state comment per repo with new planVersion and updatedAt; preserve discoveredRepos.
+          3) Update each issue body with precise proposed changes and keep acceptance labels intact unless contradicted by new analysis.
+          4) Post a YouTrack comment using the "youtrack" MCP tool with:
+             - Summary: "Plans re-synthesized across ${REPOS_JSON.length} repositories for consistency"
+             - List of repositories where plans were updated
+             - Key changes made for cross-repo consistency
+             - Links to updated planning issues
+             - Capture and note the YouTrack comment URL that gets returned.
 
           Output:
-          - Print a compact JSON { "updatedRepos": ["org/repo", ...] } at the end.
+          - Print a compact JSON {
+              "updatedRepos": ["org/repo", ...],
+              "youtrackCommentUrl": "https://abrar-sandbox.youtrack.cloud/issue/${TICKET_ID}#focus=Comments-X-Y"
+            } at the end.
 
           __PROMPT__
           EOF
