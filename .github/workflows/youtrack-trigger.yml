@@ -127,7 +127,7 @@ jobs:
           For each file to change:
           - Path: path/to/file
           - Change: what to add/modify/remove and why.
-          - Include a code block with either a unified diff or the exact snippet to insert/replace.
+          - Include a code block with a unified diff.
 
           ## Acceptance criteria
           - Bullet list of verifiable outcomes tied to the ticket.
