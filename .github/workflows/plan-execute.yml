@@ -176,7 +176,7 @@ jobs:
           echo "seed_repo=$SEED_REPO" >> "$GITHUB_OUTPUT"
           echo "seed_issue=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
 
-      - name: Extract discovered repos from bot-state
+      - name: Extract discovered repos from related planning issues
         id: discover
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
@@ -185,24 +185,24 @@ jobs:
           set -euo pipefail
           OWNER_REPO="${{ steps.ctx.outputs.seed_repo }}"
           ISSUE_NUMBER="${{ steps.ctx.outputs.seed_issue }}"
-          DATA=$(gh issue view "$ISSUE_NUMBER" --repo "$OWNER_REPO" --json body,comments)
-          STATE=$(printf '%s' "$DATA" | jq -r '
-            (.comments[]?.body // empty) as $b |
-            select($b | contains("<!-- bot-state:youtrack-orchestrator -->")) |
-            ($b | capture("<!-- bot-state:youtrack-orchestrator -->\\s*(?<json>\\{[\\s\\S]*\\})") .json) ' | tail -n1 || true)
-          if [ -z "$STATE" ]; then
-            STATE=$(printf '%s' "$DATA" | jq -r '
-              .body as $b |
-              if ($b | contains("<!-- bot-state:youtrack-orchestrator -->")) then
-                ($b | capture("<!-- bot-state:youtrack-orchestrator -->\\s*(?<json>\\{[\\s\\S]*\\})") .json)
-              else empty end' || true)
+
+          # Fetch the issue body
+          BODY=$(gh issue view "$ISSUE_NUMBER" --repo "$OWNER_REPO" --json body --jq '.body')
+
+          # Extract GitHub issue URLs from "Related Planning Issues" section
+          # Pattern: https://github.com/org/repo/issues/N
+          RELATED_URLS=$(printf '%s' "$BODY" | grep -Eo 'https://github\.com/[^/]+/[^/]+/issues/[0-9]+' || true)
+
+          # Extract org/repo from URLs and add seed repo
+          REPOS_JSON=$(jq -cn --arg seed "$OWNER_REPO" '[$seed]')
+          if [ -n "$RELATED_URLS" ]; then
+            while IFS= read -r url; do
+              # Extract org/repo from https://github.com/org/repo/issues/N
+              REPO=$(echo "$url" | sed -E 's|https://github\.com/([^/]+/[^/]+)/issues/.*|\1|')
+              REPOS_JSON=$(echo "$REPOS_JSON" | jq --arg r "$REPO" '. + [$r] | unique')
+            done <<< "$RELATED_URLS"
           fi
-          if [ -n "$STATE" ]; then
-            REPOS_JSON=$(printf '%s' "$STATE" | jq -c '.discoveredRepos // []')
-          fi
-          if [ -z "${REPOS_JSON:-}" ] || [ "$REPOS_JSON" = "null" ]; then
-            REPOS_JSON=$(jq -cn --arg r "${{ steps.ctx.outputs.seed_repo }}" '[ $r ]')
-          fi
+
           echo "repos=$REPOS_JSON" >> "$GITHUB_OUTPUT"
 
       - name: Clone All Discovered Repositories

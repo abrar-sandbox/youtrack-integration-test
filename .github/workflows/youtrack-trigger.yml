@@ -132,7 +132,9 @@ jobs:
           ## Acceptance criteria
           - Bullet list of verifiable outcomes tied to the ticket.
 
-          3) After creating issues across repos, post a single comment to YouTrack ticket ${TICKET_ID} using the "youtrack" MCP tool listing the created issue URLs.
+          3) After creating all issues, if there are multiple repositories, update each issue to add a "## Related Planning Issues" section at the end with links to all OTHER planning issues (not including itself). Use gh to update the issue body with this cross-reference section.
+
+          4) After creating and cross-linking issues, post a single comment to YouTrack ticket ${TICKET_ID} using the "youtrack" MCP tool listing the created issue URLs.
 
           Output:
           - Print a compact JSON at the end: { "created": { "org/repo": "https://github.com/org/repo/issues/N", ... } }.
