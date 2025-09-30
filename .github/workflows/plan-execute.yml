@@ -42,7 +42,7 @@ jobs:
           REPO="${{ github.event.client_payload.repo }}"
           ISSUE_NUMBER="${{ github.event.client_payload.issueNumber }}"
           SAFE_REPO=$(printf '%s' "$REPO" | tr '/' '__')
-          BRANCH="youtrack/${TICKET_ID}/plan-exec"
+          BRANCH="${TICKET_ID}/issue#${ISSUE_NUMBER}"
           echo "ticket_id=$TICKET_ID" >> "$GITHUB_OUTPUT"
           echo "repo=$REPO" >> "$GITHUB_OUTPUT"
           echo "safe_repo=$SAFE_REPO" >> "$GITHUB_OUTPUT"
@@ -193,17 +193,22 @@ jobs:
           # Pattern: https://github.com/org/repo/issues/N
           RELATED_URLS=$(printf '%s' "$BODY" | grep -Eo 'https://github\.com/[^/]+/[^/]+/issues/[0-9]+' || true)
 
-          # Extract org/repo from URLs and add seed repo
+          # Build repo list and repo-to-issue mapping
           REPOS_JSON=$(jq -cn --arg seed "$OWNER_REPO" '[$seed]')
+          REPO_ISSUE_MAP=$(jq -cn --arg seed "$OWNER_REPO" --argjson issue "$ISSUE_NUMBER" '{($seed): $issue}')
+
           if [ -n "$RELATED_URLS" ]; then
             while IFS= read -r url; do
-              # Extract org/repo from https://github.com/org/repo/issues/N
+              # Extract org/repo and issue number from https://github.com/org/repo/issues/N
               REPO=$(echo "$url" | sed -E 's|https://github\.com/([^/]+/[^/]+)/issues/.*|\1|')
+              ISSUE=$(echo "$url" | sed -E 's|.*/issues/([0-9]+)|\1|')
               REPOS_JSON=$(echo "$REPOS_JSON" | jq --arg r "$REPO" '. + [$r] | unique')
+              REPO_ISSUE_MAP=$(echo "$REPO_ISSUE_MAP" | jq --arg r "$REPO" --argjson i "$ISSUE" '.[$r] = $i')
             done <<< "$RELATED_URLS"
           fi
 
           echo "repos=$REPOS_JSON" >> "$GITHUB_OUTPUT"
+          echo "repo_issue_map=$REPO_ISSUE_MAP" >> "$GITHUB_OUTPUT"
 
       - name: Clone All Discovered Repositories
         env:
@@ -223,6 +228,7 @@ jobs:
         env:
           TICKET_ID: ${{ steps.ctx.outputs.ticket_id }}
           REPOS_JSON: ${{ steps.discover.outputs.repos }}
+          REPO_ISSUE_MAP: ${{ steps.discover.outputs.repo_issue_map }}
         shell: bash
         run: |
           set -euo pipefail
@@ -233,16 +239,17 @@ jobs:
           Context:
           - Repositories checked out under ./repos with names "org__repo".
           - The set of repos to execute (JSON): ${REPOS_JSON}
+          - Repo-to-issue mapping (JSON): ${REPO_ISSUE_MAP}
           - The GitHub CLI (gh) is available and authenticated via GH_TOKEN.
           - The YouTrack MCP server is registered as "youtrack".
 
           Task (cross-repo execution):
           For each repo in ${REPOS_JSON}:
-            1) Resolve the planning issue for this ticket (by title marker or body link).
-            2) Determine default branch; create a feature branch "youtrack/${TICKET_ID}/plan-exec".
-            3) Parse the accepted plan sections; read actual files; apply diffs/snippets.
+            1) Get the planning issue number from the repo-to-issue mapping for this repo.
+            2) Determine default branch; create a feature branch "${TICKET_ID}/issue#N" where N is the planning issue number from the mapping.
+            3) Parse the accepted plan sections from issue #N; read actual files; apply diffs/snippets.
             4) Commit and push branch; open PR; apply label "exec:in-progress".
-            5) Update the planning issue with a comment containing the PR link and execution summary.
+            5) Update the planning issue #N with a comment containing the PR link and execution summary.
 
           After processing all repos:
           6) Post a single YouTrack comment using the "youtrack" MCP tool with:
