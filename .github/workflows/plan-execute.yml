@@ -253,7 +253,7 @@ jobs:
 
           After processing all repos:
           6) Post a single YouTrack comment using the "youtrack" MCP tool with:
-             - Summary: "Implementation started across ${REPOS_JSON.length} repositories"
+             - Summary: "Implementation started across N repositories" (where N is the count of repos in the JSON array)
              - List of all created PRs with repo names
              - Brief overview of changes made
              - Capture and note the YouTrack comment URL that gets returned.

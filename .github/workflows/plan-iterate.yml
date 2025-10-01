@@ -223,7 +223,7 @@ jobs:
           2) Re-synthesize the plan across repos to ensure consistency, reading concrete files from each repo. Cite file paths.
           3) Update each issue body with precise proposed changes and keep acceptance labels intact unless contradicted by new analysis.
           4) Post a YouTrack comment using the "youtrack" MCP tool with:
-             - Summary: "Plans re-synthesized across ${REPOS_JSON.length} repositories for consistency"
+             - Summary: "Plans re-synthesized across N repositories for consistency" (where N is the count of repos in the JSON array)
              - List of repositories where plans were updated
              - Key changes made for cross-repo consistency
              - Links to updated planning issues
