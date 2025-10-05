@@ -73,10 +73,15 @@ runs:
         echo "Prompt length: ${#PROMPT}" >&2
 
         # Run opencode and capture output and exit code
+        # Save prompt to file to avoid shell escaping issues
+        echo "$PROMPT" > /tmp/opencode_prompt.txt
+
         set +e
-        RESPONSE=$(opencode -p "$PROMPT" -q 2>&1)
+        RESPONSE=$(opencode run "$(cat /tmp/opencode_prompt.txt)" 2>&1)
         EXIT_CODE=$?
         set -e
+
+        rm -f /tmp/opencode_prompt.txt
 
         echo "OpenCode exit code: $EXIT_CODE" >&2
         echo "Raw AI response: $RESPONSE" >&2

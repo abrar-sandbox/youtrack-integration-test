@@ -196,7 +196,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RESPONSE=$(opencode -p "$PROMPT" -q)
+          # Save prompt to file to avoid shell escaping issues
+          echo "$PROMPT" > /tmp/opencode_prompt.txt
+          RESPONSE=$(opencode run "$(cat /tmp/opencode_prompt.txt)")
+          rm -f /tmp/opencode_prompt.txt
           printf '%s' "$RESPONSE" > ./ai_response.txt
           BYTES=$(wc -c < ./ai_response.txt | tr -d ' ')
           {
