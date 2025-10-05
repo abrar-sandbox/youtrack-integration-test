@@ -5,6 +5,9 @@ on:
   repository_dispatch:
     types: [ plan-accept, plan-accept-all ]
 
+env:
+  YOUTRACK_BASE_URL: 'https://abrar-sandbox.youtrack.cloud'
+
 jobs:
   scoped-execute:
     if: ${{ github.event.action == 'plan-accept' }}
@@ -24,7 +27,7 @@ jobs:
         uses: ./.github/actions/setup-claude-env
         with:
           node-version: '22'
-          youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
+          youtrack-url: ${{ env.YOUTRACK_BASE_URL }}
           youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
 
       - name: Configure Git
@@ -104,7 +107,7 @@ jobs:
               "openedPR": "https://github.com/org/repo/pull/123",
               "branch": "${BRANCH}",
               "repo": "${TARGET_REPO}",
-              "youtrackCommentUrl": "https://abrar-sandbox.youtrack.cloud/issue/${TICKET_ID}#focus=Comments-X-Y"
+              "youtrackCommentUrl": "${{ env.YOUTRACK_BASE_URL }}/issue/${TICKET_ID}#focus=Comments-X-Y"
             }
 
           Quality:
@@ -155,7 +158,7 @@ jobs:
         uses: ./.github/actions/setup-claude-env
         with:
           node-version: '22'
-          youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
+          youtrack-url: ${{ env.YOUTRACK_BASE_URL }}
           youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
 
       - name: Configure Git
@@ -261,7 +264,7 @@ jobs:
           Output:
           - Print a compact JSON: {
               "opened": { "org/repo": "https://github.com/org/repo/pull/N", ... },
-              "youtrackCommentUrl": "https://abrar-sandbox.youtrack.cloud/issue/${TICKET_ID}#focus=Comments-X-Y"
+              "youtrackCommentUrl": "${{ env.YOUTRACK_BASE_URL }}/issue/${TICKET_ID}#focus=Comments-X-Y"
             }
 
           Requirements:

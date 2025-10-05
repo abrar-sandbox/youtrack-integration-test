@@ -19,7 +19,8 @@ exports.rule = entities.Issue.onChange({
                 issueId: issue.id,
                 title: issue.summary,
                 description: issue.description,
-                tag: addedTag && addedTag.name
+                tag: addedTag && addedTag.name,
+                // debug: true
             }
         };
 

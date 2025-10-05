@@ -1,5 +1,5 @@
 name: Discover Repositories from YouTrack Ticket
-description: Analyze a YouTrack ticket with Claude and emit a JSON list of accessible repositories
+description: Analyze a YouTrack ticket with AI agent and emit a JSON list of accessible repositories
 
 inputs:
   ticket-id:
@@ -52,13 +52,13 @@ runs:
         __PROMPT__
         EOF
 
-    - id: claude
-      name: Discover Repositories with Claude
+    - id: ai
+      name: Discover Repositories with AI Agent
       shell: bash
       run: |
         set -euo pipefail
-        RESPONSE=$(printf '%s' "$PROMPT" | claude --dangerously-skip-permissions)
-        echo "Raw Claude response: $RESPONSE" >&2
+        RESPONSE=$(opencode -p "$PROMPT" -q)
+        echo "Raw AI response: $RESPONSE" >&2
         REPOS_JSON=$(printf '%s' "$RESPONSE" | jq -c '.repositories // []' 2>/dev/null || echo '[]')
         # Expose as step output for the composite action
         echo "repositories=$REPOS_JSON" >> "$GITHUB_OUTPUT"
@@ -66,4 +66,4 @@ runs:
 outputs:
   repositories:
     description: 'Discovered repositories as a JSON array string (e.g., ["org/repo"])'
-    value: ${{ steps.claude.outputs.repositories }}
+    value: ${{ steps.ai.outputs.repositories }}

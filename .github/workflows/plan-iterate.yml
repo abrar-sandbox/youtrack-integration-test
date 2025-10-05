@@ -5,6 +5,9 @@ on:
   repository_dispatch:
     types: [ plan-feedback, plan-replan-all ]
 
+env:
+  YOUTRACK_BASE_URL: 'https://abrar-sandbox.youtrack.cloud'
+
 jobs:
   scoped-iterate:
     if: ${{ github.event.action == 'plan-feedback' }}
@@ -23,7 +26,7 @@ jobs:
         uses: ./.github/actions/setup-claude-env
         with:
           node-version: '22'
-          youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
+          youtrack-url: ${{ env.YOUTRACK_BASE_URL }}
           youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
 
       - name: Prepare Event Context
@@ -97,7 +100,7 @@ jobs:
               "updated": true,
               "repo": "${TARGET_REPO}",
               "issue": ${ISSUE_NUMBER},
-              "youtrackCommentUrl": "https://abrar-sandbox.youtrack.cloud/issue/${TICKET_ID}#focus=Comments-X-Y"
+              "youtrackCommentUrl": "${{ env.YOUTRACK_BASE_URL }}/issue/${TICKET_ID}#focus=Comments-X-Y"
             }
 
           __PROMPT__
@@ -143,7 +146,7 @@ jobs:
         uses: ./.github/actions/setup-claude-env
         with:
           node-version: '22'
-          youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
+          youtrack-url: ${{ env.YOUTRACK_BASE_URL }}
           youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
 
       - name: Prepare Event Context
@@ -232,7 +235,7 @@ jobs:
           Output:
           - Print a compact JSON {
               "updatedRepos": ["org/repo", ...],
-              "youtrackCommentUrl": "https://abrar-sandbox.youtrack.cloud/issue/${TICKET_ID}#focus=Comments-X-Y"
+              "youtrackCommentUrl": "${{ env.YOUTRACK_BASE_URL }}/issue/${TICKET_ID}#focus=Comments-X-Y"
             } at the end.
 
           __PROMPT__

@@ -5,6 +5,10 @@ on:
   repository_dispatch:
     types: [ youtrack-tag-dev-bot ]
 
+env:
+  GITHUB_ORG: 'abrar-sandbox'
+  YOUTRACK_BASE_URL: 'https://abrar-sandbox.youtrack.cloud'
+
 jobs:
   discover-repos:
     name: Discover Repositories
@@ -18,12 +22,15 @@ jobs:
       - name: Checkout Automation Repo
         uses: actions/checkout@v4
 
-      - name: Set up Claude Environment
-        uses: ./.github/actions/setup-claude-env
+      - name: Set up OpenCode Environment
+        uses: ./.github/actions/setup-opencode-env
         with:
           node-version: '22'
-          youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
+          youtrack-url: ${{ env.YOUTRACK_BASE_URL }}
           youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+          model: 'openai/gpt-5'
+          reasoning-effort: 'medium'
 
       - name: Discover Repositories from Ticket
         id: process
@@ -32,9 +39,9 @@ jobs:
           ticket-id: ${{ github.event.client_payload.issueId }}
           ticket-title: ${{ github.event.client_payload.title }}
           ticket-description: ${{ github.event.client_payload.description }}
-          github-organization: 'abrar-sandbox'
+          github-organization: ${{ env.GITHUB_ORG }}
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
   aggregate-plan:
@@ -49,23 +56,26 @@ jobs:
       - name: Checkout Automation Repo
         uses: actions/checkout@v4
 
-      - name: Set up Claude Environment
-        uses: ./.github/actions/setup-claude-env
+      - name: Set up OpenCode Environment
+        uses: ./.github/actions/setup-opencode-env
         with:
           node-version: '22'
-          youtrack-url: 'https://abrar-sandbox.youtrack.cloud'
+          youtrack-url: ${{ env.YOUTRACK_BASE_URL }}
           youtrack-token: ${{ secrets.YOUTRACK_API_TOKEN }}
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+          model: 'openai/gpt-5-codex'
+          reasoning-effort: 'high'
 
-      - name: Environment Diagnostics (Claude, MCP, gh, docker)
+      - name: Environment Diagnostics (OpenCode, MCP, gh, docker)
         shell: bash
         run: |
           set -euo pipefail
           {
-            echo "claude --version";
-            claude --version || true;
+            echo "opencode --version";
+            opencode --version || true;
             echo "";
-            echo "claude mcp list";
-            claude mcp list || true;
+            echo "OpenCode configuration:";
+            cat opencode.json || true;
             echo "";
             echo "gh --version && gh auth status";
             gh --version || true;
@@ -89,13 +99,13 @@ jobs:
             git clone --depth 1 "https://x-access-token:${GH_PAT}@github.com/${R}.git" "repos/$SAFE"
           done
 
-      - name: Build Cross-Repo Analysis Prompt (Claude will post plans as issues on Github and comment on Youtrack)
+      - name: Build Cross-Repo Analysis Prompt (OpenCode will post plans as issues on Github and comment on Youtrack)
         env:
           TICKET_ID: ${{ github.event.client_payload.issueId }}
           TITLE: ${{ github.event.client_payload.title }}
           DESC: ${{ github.event.client_payload.description }}
           REPOS_JSON: ${{ needs.discover-repos.outputs.repos }}
-          YOUTRACK_URL: 'https://abrar-sandbox.youtrack.cloud'
+          YOUTRACK_URL: ${{ env.YOUTRACK_BASE_URL }}
         shell: bash
         run: |
           set -euo pipefail
@@ -172,25 +182,24 @@ jobs:
             echo "";
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Invoke Claude with Prompt (capture full response)
+      - name: Invoke OpenCode with Prompt (capture full response)
         working-directory: repos
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
-          YOUTRACK_URL: 'https://abrar-sandbox.youtrack.cloud'
+          YOUTRACK_URL: ${{ env.YOUTRACK_BASE_URL }}
           YOUTRACK_API_TOKEN: ${{ secrets.YOUTRACK_API_TOKEN }}
-          YOUTRACK_CLOUD: 'true'
         shell: bash
         run: |
           set -euo pipefail
-          RESPONSE=$(printf '%s' "$PROMPT" | claude --dangerously-skip-permissions)
-          printf '%s' "$RESPONSE" > ./claude_response.txt
-          BYTES=$(wc -c < ./claude_response.txt | tr -d ' ')
+          RESPONSE=$(opencode -p "$PROMPT" -q)
+          printf '%s' "$RESPONSE" > ./ai_response.txt
+          BYTES=$(wc -c < ./ai_response.txt | tr -d ' ')
           {
-            echo "Claude response saved to repos/claude_response.txt (${BYTES} bytes)";
+            echo "OpenCode response saved to repos/ai_response.txt (${BYTES} bytes)";
             echo "";
             echo "Response preview (first 2000 chars):";
-            head -c 2000 ./claude_response.txt || true;
+            head -c 2000 ./ai_response.txt || true;
             echo "";
           } >> "$GITHUB_STEP_SUMMARY"
           # Also echo truncated to logs for quick view
@@ -202,7 +211,8 @@ jobs:
           name: planning-artifacts
           path: |
             repos/prompt.txt
-            repos/claude_response.txt
+            repos/ai_response.txt
+            repos/opencode.json
           retention-days: 7
 
       - name: SSH into runner to Debug (guarded)
@@ -218,6 +228,7 @@ jobs:
       - name: Comment on YouTrack to Request Repository Mentions
         env:
           YOUTRACK_API_TOKEN: ${{ secrets.YOUTRACK_API_TOKEN }}
+          YOUTRACK_BASE_URL: ${{ env.YOUTRACK_BASE_URL }}
           TICKET_ID: ${{ github.event.client_payload.issueId }}
         shell: bash
         run: |
@@ -228,5 +239,5 @@ jobs:
             -H "Authorization: Bearer ${YOUTRACK_API_TOKEN}" \
             -H "Accept: application/json" \
             -H "Content-Type: application/json" \
-            "https://abrar-sandbox.youtrack.cloud/api/issues/${TICKET_ID}/comments?fields=id,text,author(login)" \
+            "${YOUTRACK_BASE_URL}/api/issues/${TICKET_ID}/comments?fields=id,text,author(login)" \
             -d "$COMMENT_PAYLOAD"

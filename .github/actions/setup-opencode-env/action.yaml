@@ -45,7 +45,7 @@ runs:
       shell: bash
       run: |
         mkdir -p ~/.local/share/opencode
-        echo '{"openrouter":"${{ inputs.openrouter-api-key }}"}' > ~/.local/share/opencode/auth.json
+        echo "{\"openrouter\":\"${{ inputs.openrouter-api-key }}\"}" > ~/.local/share/opencode/auth.json
 
     - name: Configure YouTrack MCP and Model
       shell: bash
