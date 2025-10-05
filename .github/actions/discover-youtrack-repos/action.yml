@@ -56,41 +56,37 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        echo "Running OpenCode with prompt..."
-        echo "Environment variables:"
-        echo "OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:0:10}..." >&2
-        echo "Prompt length: ${#PROMPT}" >&2
 
-        # Run opencode and capture output and exit code
         # Save prompt to file to avoid shell escaping issues
         echo "$PROMPT" > /tmp/opencode_prompt.txt
 
+        # Run AI agent
         set +e
         RESPONSE=$(opencode run "$(cat /tmp/opencode_prompt.txt)" 2>&1)
         EXIT_CODE=$?
         set -e
-
         rm -f /tmp/opencode_prompt.txt
 
-        echo "OpenCode exit code: $EXIT_CODE" >&2
-        echo "Raw AI response: $RESPONSE" >&2
+        # Log response
+        echo "AI agent exit code: $EXIT_CODE" >&2
+        echo "AI agent response:" >&2
+        echo "$RESPONSE" >&2
 
+        # Check for errors
         if [ $EXIT_CODE -ne 0 ]; then
-          echo "OpenCode failed with exit code $EXIT_CODE" >&2
-          echo "Full output: $RESPONSE" >&2
+          echo "AI agent failed with exit code $EXIT_CODE" >&2
           exit $EXIT_CODE
         fi
 
         # Extract JSON from response (handles both clean JSON and mixed output with tool logs)
-        # Look for last occurrence of {"repositories": pattern
         JSON_LINE=$(printf '%s' "$RESPONSE" | grep -o '{"repositories":\[.*\]}' | tail -n1)
         if [ -n "$JSON_LINE" ]; then
           REPOS_JSON=$(echo "$JSON_LINE" | jq -c '.repositories // []' 2>/dev/null || echo '[]')
         else
           REPOS_JSON='[]'
         fi
-        echo "Extracted repositories JSON: $REPOS_JSON" >&2
-        # Expose as step output for the composite action
+
+        echo "Extracted repositories: $REPOS_JSON" >&2
         echo "repositories=$REPOS_JSON" >> "$GITHUB_OUTPUT"
 
 outputs:
