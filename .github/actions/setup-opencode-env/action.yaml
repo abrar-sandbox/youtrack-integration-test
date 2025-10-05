@@ -54,6 +54,7 @@ runs:
         cat > opencode.json <<EOF
         {
           "\$schema": "https://opencode.ai/config.json",
+          "model": "openrouter/${{ inputs.model }}",
           "mcp": {
             "youtrack": {
               "type": "local",
@@ -71,10 +72,13 @@ runs:
               }
             }
           },
-          "provider": {
+          "providers": {
             "openrouter": {
+              "apiKey": "\${OPENROUTER_API_KEY}",
+              "baseURL": "https://openrouter.ai/api/v1",
               "models": {
                 "${{ inputs.model }}": {
+                  "id": "${{ inputs.model }}",
                   "name": "${{ inputs.model }}",
                   "options": {
                     "reasoningEffort": "${{ inputs.reasoning-effort }}"
