@@ -1,0 +1,107 @@
+name: Set up OpenCode Environment
+description: Set up Node.js, install OpenCode CLI, and configure YouTrack MCP
+
+inputs:
+  node-version:
+    description: 'Node.js version to install'
+    required: false
+    default: '22'
+  youtrack-url:
+    description: 'YouTrack base URL'
+    required: true
+  youtrack-token:
+    description: 'YouTrack API token'
+    required: true
+  openrouter-api-key:
+    description: 'OpenRouter API key'
+    required: true
+  model:
+    description: 'Model to use (e.g., openai/gpt-5-codex, anthropic/claude-3.5-sonnet)'
+    required: false
+    default: 'openai/gpt-5-codex'
+  reasoning-effort:
+    description: 'Reasoning effort level (low, medium, high) - for supported models'
+    required: false
+    default: 'high'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install OpenCode CLI
+      shell: bash
+      run: |
+        npm install -g opencode-ai@latest
+
+    - name: Add npm Global Bin to PATH
+      shell: bash
+      run: echo "$(npm config get prefix)/bin" >> "$GITHUB_PATH"
+
+    - name: Configure OpenCode Auth
+      shell: bash
+      run: |
+        mkdir -p ~/.local/share/opencode
+        echo '{"openrouter":"${{ inputs.openrouter-api-key }}"}' > ~/.local/share/opencode/auth.json
+
+    - name: Configure YouTrack MCP and Model
+      shell: bash
+      run: |
+        # Create opencode config with YouTrack MCP and model settings
+        cat > opencode.json <<EOF
+        {
+          "\$schema": "https://opencode.ai/config.json",
+          "mcp": {
+            "youtrack": {
+              "type": "local",
+              "command": [
+                "docker", "run", "-i", "--rm",
+                "-e", "YOUTRACK_URL",
+                "-e", "YOUTRACK_API_TOKEN",
+                "-e", "YOUTRACK_CLOUD=true",
+                "tonyzorin/youtrack-mcp:latest"
+              ],
+              "enabled": true,
+              "environment": {
+                "YOUTRACK_URL": "${{ inputs.youtrack-url }}",
+                "YOUTRACK_API_TOKEN": "${{ inputs.youtrack-token }}"
+              }
+            }
+          },
+          "provider": {
+            "openrouter": {
+              "models": {
+                "${{ inputs.model }}": {
+                  "name": "${{ inputs.model }}",
+                  "options": {
+                    "reasoningEffort": "${{ inputs.reasoning-effort }}"
+                  }
+                }
+              }
+            }
+          }
+        }
+        EOF
+        
+        echo "OpenCode configuration created with YouTrack MCP server and model: ${{ inputs.model }}"
+
+    - name: Set Environment Variables
+      shell: bash
+      run: |
+        echo "OPENROUTER_API_KEY=${{ inputs.openrouter-api-key }}" >> "$GITHUB_ENV"
+        echo "YOUTRACK_URL=${{ inputs.youtrack-url }}" >> "$GITHUB_ENV"
+        echo "YOUTRACK_API_TOKEN=${{ inputs.youtrack-token }}" >> "$GITHUB_ENV"
+
+    - name: Verify OpenCode Installation
+      shell: bash
+      run: |
+        opencode --version
+        echo "OpenCode installed successfully"
+        
+        if [ -f opencode.json ]; then
+          echo "OpenCode configuration:"
+          cat opencode.json
+        fi

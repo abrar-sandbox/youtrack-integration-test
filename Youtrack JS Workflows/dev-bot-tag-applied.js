@@ -1,7 +1,8 @@
 const entities = require('@jetbrains/youtrack-scripting-api/entities');
 
 const GITHUB_PAT = 'secret GH_PAT';
-const GITHUB_REPO = 'abrar-sandbox/youtrack-integration-test';
+// const GITHUB_REPO = 'ideascale/andre';
+// const GITHUB_REPO = 'abrar-sandbox/youtrack-integration-test';
 
 exports.rule = entities.Issue.onChange({
     title: 'Dev-bot-tag-applied',
