@@ -92,7 +92,7 @@ runs:
       shell: bash
       run: |
         echo "OPENROUTER_API_KEY=${{ inputs.openrouter-api-key }}" >> "$GITHUB_ENV"
-        echo "YOUTRACK_URL=${{ inputs.youtrack-url }}" >> "$GITHUB_ENV"
+        echo "YOUTRACK_BASE_URL=${{ inputs.youtrack-url }}" >> "$GITHUB_ENV"
         echo "YOUTRACK_API_TOKEN=${{ inputs.youtrack-token }}" >> "$GITHUB_ENV"
 
     - name: Verify OpenCode Installation

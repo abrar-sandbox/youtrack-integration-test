@@ -44,6 +44,10 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
+      - name: SSH into runner to Debug (guarded)
+        if: ${{ github.event.client_payload.debug == true }}
+        uses: owenthereal/action-upterm@v1
+
   aggregate-plan:
     name: Generate Plans and Create Issues
     needs: [ discover-repos ]
