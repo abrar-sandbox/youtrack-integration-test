@@ -45,9 +45,11 @@ runs:
         - ONLY return repositories that are explicitly named in the ticket text
         - Validate accessibility in the ${{ inputs.github-organization }} org using gh
         - If NO repositories are explicitly mentioned or none of the repos are accessible return empty array
-        - Respond with JSON only (no prose, no code fences) in the exact shape:
+        - Write the result to a file named repos.json in the current directory
+        - The file must contain JSON in the exact shape:
           { "repositories": ["org/repo", ...] }
-        - If none explicitly found, return { "repositories": [] }
+        - If none explicitly found, write { "repositories": [] }
+        - Do not output the JSON to stdout - only write the file
         __PROMPT__
         EOF
 
@@ -78,12 +80,13 @@ runs:
           exit $EXIT_CODE
         fi
 
-        # Extract JSON from response (handles both clean JSON and mixed output with tool logs)
-        # Look for lines containing the repositories JSON pattern (allows spaces)
-        JSON_LINE=$(printf '%s' "$RESPONSE" | grep '{"repositories":' | tail -n1)
-        if [ -n "$JSON_LINE" ]; then
-          REPOS_JSON=$(echo "$JSON_LINE" | jq -c '.repositories // []' 2>/dev/null || echo '[]')
+        # Read and validate repos.json file written by AI
+        if [ -f repos.json ]; then
+          echo "Found repos.json file" >&2
+          cat repos.json >&2
+          REPOS_JSON=$(jq -c '.repositories // []' repos.json 2>/dev/null || echo '[]')
         else
+          echo "Warning: repos.json not found, using empty array" >&2
           REPOS_JSON='[]'
         fi
 

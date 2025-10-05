@@ -150,8 +150,8 @@ jobs:
 
           4) After creating and cross-linking issues, post a single comment to YouTrack ticket ${TICKET_ID} using the "youtrack" MCP tool listing the created issue URLs.
 
-          Output:
-          - Print a compact JSON at the end: { "created": { "org/repo": "https://github.com/org/repo/issues/N", ... } }.
+          5) Write a JSON file named issues.json in the current directory containing:
+          { "created": { "org/repo": "https://github.com/org/repo/issues/N", ... } }
 
           Quality bar:
           - Do NOT output boilerplate. Reference concrete files found in each repo.
@@ -212,6 +212,20 @@ jobs:
           # Also echo truncated to logs for quick view
           echo "$RESPONSE" | head -c 2000
 
+      - name: Validate Planning Results
+        working-directory: repos
+        shell: bash
+        run: |
+          if [ -f issues.json ]; then
+            echo "Planning results:" >&2
+            cat issues.json | jq '.' >&2
+            echo "Issues created successfully"
+          else
+            echo "Warning: issues.json not found" >&2
+            echo "Check ai_response.txt for details"
+            exit 1
+          fi
+
       - name: Upload Planning Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -220,6 +234,7 @@ jobs:
             repos/prompt.txt
             repos/ai_response.txt
             repos/opencode.json
+            repos/issues.json
           retention-days: 7
 
       - name: SSH into runner to Debug (guarded)
