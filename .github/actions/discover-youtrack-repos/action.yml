@@ -13,8 +13,7 @@ inputs:
     required: true
   github-organization:
     description: 'GitHub organization to check for repositories'
-    required: false
-    default: 'ideascale'
+    required: true
 
 runs:
   using: composite
@@ -68,8 +67,26 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        RESPONSE=$(opencode -p "$PROMPT" -q)
+        echo "Running OpenCode with prompt..."
+        echo "Environment variables:"
+        echo "OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:0:10}..." >&2
+        echo "Prompt length: ${#PROMPT}" >&2
+
+        # Run opencode and capture output and exit code
+        set +e
+        RESPONSE=$(opencode -p "$PROMPT" -q 2>&1)
+        EXIT_CODE=$?
+        set -e
+
+        echo "OpenCode exit code: $EXIT_CODE" >&2
         echo "Raw AI response: $RESPONSE" >&2
+
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "OpenCode failed with exit code $EXIT_CODE" >&2
+          echo "Full output: $RESPONSE" >&2
+          exit $EXIT_CODE
+        fi
+
         REPOS_JSON=$(printf '%s' "$RESPONSE" | jq -c '.repositories // []' 2>/dev/null || echo '[]')
         # Expose as step output for the composite action
         echo "repositories=$REPOS_JSON" >> "$GITHUB_OUTPUT"
