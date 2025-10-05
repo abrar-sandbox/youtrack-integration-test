@@ -79,7 +79,8 @@ runs:
         fi
 
         # Extract JSON from response (handles both clean JSON and mixed output with tool logs)
-        JSON_LINE=$(printf '%s' "$RESPONSE" | grep -o '{"repositories":\[.*\]}' | tail -n1)
+        # Look for lines containing the repositories JSON pattern (allows spaces)
+        JSON_LINE=$(printf '%s' "$RESPONSE" | grep '{"repositories":' | tail -n1)
         if [ -n "$JSON_LINE" ]; then
           REPOS_JSON=$(echo "$JSON_LINE" | jq -c '.repositories // []' 2>/dev/null || echo '[]')
         else
