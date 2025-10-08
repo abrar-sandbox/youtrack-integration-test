@@ -1,6 +1,6 @@
 const entities = require('@jetbrains/youtrack-scripting-api/entities');
 
-const GITHUB_PAT = 'secret GH_PAT';
+const GITHUB_PAT = '';
 // const GITHUB_REPO = 'ideascale/andre';
 // const GITHUB_REPO = 'abrar-sandbox/youtrack-integration-test';
 
@@ -19,7 +19,7 @@ exports.rule = entities.Issue.onChange({
                 issueId: issue.id,
                 title: issue.summary,
                 description: issue.description,
-                tag: addedTag && addedTag.name,
+                tag: addedTag && addedTag.name
                 // debug: true
             }
         };
@@ -48,7 +48,7 @@ exports.rule = entities.Issue.onChange({
     requirements: {
         devBotTag: {
             type: entities.Tag,
-            name: 'dev-bot'
+            name: 'andre'
         }
     }
 });
